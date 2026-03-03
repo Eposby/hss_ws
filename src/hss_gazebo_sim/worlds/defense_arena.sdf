@@ -1,0 +1,255 @@
+<?xml version="1.0"?>
+<sdf version="1.8">
+  <world name="defense_arena">
+    
+    <!-- Physics -->
+    <physics name="1ms" type="ignored">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+    
+    <!-- Plugins -->
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu"/>
+    
+    <!-- Lighting -->
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <!-- Ground Plane -->
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>100 100</size>
+            </plane>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>100 100</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.4 0.5 0.3 1</ambient>
+            <diffuse>0.4 0.5 0.3 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Air Defense Turret -->
+    <include>
+      <uri>model://air_defense_turret</uri>
+      <pose>0 0 0 0 0 0</pose>
+    </include>
+
+    <!-- ========== TEST TARGETS ========== -->
+    
+    <!-- Sabit Hedef 1: Kırmızı Küre -->
+    <model name="static_target_red_sphere">
+      <static>true</static>
+      <pose>5 3 2 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <sphere><radius>0.3</radius></sphere>
+          </geometry>
+          <material>
+            <ambient>0.8 0.1 0.1 1</ambient>
+            <diffuse>1 0.2 0.2 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry><sphere><radius>0.3</radius></sphere></geometry>
+        </collision>
+      </link>
+    </model>
+
+    <!-- Sabit Hedef 2: Mavi Küp -->
+    <model name="static_target_blue_cube">
+      <static>true</static>
+      <pose>-4 5 1.5 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>0.5 0.5 0.5</size></box>
+          </geometry>
+          <material>
+            <ambient>0.1 0.1 0.8 1</ambient>
+            <diffuse>0.2 0.2 1 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry><box><size>0.5 0.5 0.5</size></box></geometry>
+        </collision>
+      </link>
+    </model>
+
+    <!-- Sabit Hedef 3: Yeşil Silindir -->
+    <model name="static_target_green_cylinder">
+      <static>true</static>
+      <pose>6 -4 2.5 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <cylinder><radius>0.25</radius><length>0.6</length></cylinder>
+          </geometry>
+          <material>
+            <ambient>0.1 0.7 0.1 1</ambient>
+            <diffuse>0.2 0.9 0.2 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry><cylinder><radius>0.25</radius><length>0.6</length></cylinder></geometry>
+        </collision>
+      </link>
+    </model>
+
+    <!-- Sabit Hedef 4: Sarı Üçgen Prizma -->
+    <model name="static_target_yellow_triangle">
+      <static>true</static>
+      <pose>-3 -6 1 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>0.6 0.6 0.4</size></box>
+          </geometry>
+          <material>
+            <ambient>0.8 0.8 0.1 1</ambient>
+            <diffuse>1 1 0.2 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry><box><size>0.6 0.6 0.4</size></box></geometry>
+        </collision>
+      </link>
+    </model>
+
+    <!-- Hareketli Hedef 1: Dost (Yeşil marker ile) -->
+    <model name="moving_target_friend">
+      <pose>8 0 3 0 0 0</pose>
+      <link name="body">
+        <inertial>
+          <mass>1.0</mass>
+          <inertia>
+            <ixx>0.1</ixx><ixy>0</ixy><ixz>0</ixz>
+            <iyy>0.1</iyy><iyz>0</iyz>
+            <izz>0.1</izz>
+          </inertia>
+        </inertial>
+        <visual name="body_visual">
+          <geometry>
+            <box><size>0.8 0.4 0.2</size></box>
+          </geometry>
+          <material>
+            <ambient>0.2 0.6 0.2 1</ambient>
+            <diffuse>0.3 0.8 0.3 1</diffuse>
+          </material>
+        </visual>
+        <visual name="marker_visual">
+          <pose>0 0 0.15 0 0 0</pose>
+          <geometry>
+            <sphere><radius>0.1</radius></sphere>
+          </geometry>
+          <material>
+            <ambient>0 1 0 1</ambient>
+            <diffuse>0 1 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry><box><size>0.8 0.4 0.2</size></box></geometry>
+        </collision>
+      </link>
+      <!-- Trajectory plugin for circular motion -->
+      <plugin filename="gz-sim-trajectory-follower-system"
+              name="gz::sim::systems::TrajectoryFollower">
+        <link_name>body</link_name>
+        <loop>true</loop>
+        <waypoints>
+          <waypoint><pose>8 0 3</pose><time>0</time></waypoint>
+          <waypoint><pose>6 6 3.5</pose><time>3</time></waypoint>
+          <waypoint><pose>0 8 4</pose><time>6</time></waypoint>
+          <waypoint><pose>-6 6 3.5</pose><time>9</time></waypoint>
+          <waypoint><pose>-8 0 3</pose><time>12</time></waypoint>
+          <waypoint><pose>-6 -6 3.5</pose><time>15</time></waypoint>
+          <waypoint><pose>0 -8 4</pose><time>18</time></waypoint>
+          <waypoint><pose>6 -6 3.5</pose><time>21</time></waypoint>
+          <waypoint><pose>8 0 3</pose><time>24</time></waypoint>
+        </waypoints>
+      </plugin>
+    </model>
+
+    <!-- Hareketli Hedef 2: Düşman (Kırmızı marker ile) -->
+    <model name="moving_target_enemy">
+      <pose>-10 5 4 0 0 0</pose>
+      <link name="body">
+        <inertial>
+          <mass>1.0</mass>
+          <inertia>
+            <ixx>0.1</ixx><ixy>0</ixy><ixz>0</ixz>
+            <iyy>0.1</iyy><iyz>0</iyz>
+            <izz>0.1</izz>
+          </inertia>
+        </inertial>
+        <visual name="body_visual">
+          <geometry>
+            <box><size>0.6 0.6 0.3</size></box>
+          </geometry>
+          <material>
+            <ambient>0.6 0.2 0.2 1</ambient>
+            <diffuse>0.8 0.3 0.3 1</diffuse>
+          </material>
+        </visual>
+        <visual name="marker_visual">
+          <pose>0 0 0.2 0 0 0</pose>
+          <geometry>
+            <sphere><radius>0.12</radius></sphere>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry><box><size>0.6 0.6 0.3</size></box></geometry>
+        </collision>
+      </link>
+      <!-- Linear back-forth motion -->
+      <plugin filename="gz-sim-trajectory-follower-system"
+              name="gz::sim::systems::TrajectoryFollower">
+        <link_name>body</link_name>
+        <loop>true</loop>
+        <waypoints>
+          <waypoint><pose>-10 5 4</pose><time>0</time></waypoint>
+          <waypoint><pose>10 5 5</pose><time>8</time></waypoint>
+          <waypoint><pose>10 -5 4</pose><time>12</time></waypoint>
+          <waypoint><pose>-10 -5 5</pose><time>20</time></waypoint>
+          <waypoint><pose>-10 5 4</pose><time>24</time></waypoint>
+        </waypoints>
+      </plugin>
+    </model>
+
+  </world>
+</sdf>

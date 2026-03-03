@@ -1,0 +1,143 @@
+# Pan-Tilt Nesne Takip Sistemi Yapılandırması
+#!!!!!!! YAML değişiklikleri direk main değişikliklerine uygulanmaz eğer main.py içinde değişiklik yaparsan yaml dosyasını güncellemen gerekir! eğer 
+# yaml dosyasında değişiklik yaparsan main.py dosyasını güncellemen gerekir! yoksa değişiklikler uygulanmaz! 
+# yamla dosyasında yazan değerler main.py dosyasında yazan değerleri ezer!
+
+
+
+
+
+
+
+# ===== Kamera Ayarları =====
+camera:
+  id: 0                    # USB kamera ID veya video dosya yolu (örn: "video.mp4") USB kamera için 0 video dosyası için video dosyasının yolu 
+  width: 640               # Görüntü genişliği
+  height: 480              # Görüntü yüksekliği
+  fps: 30                  # Hedef FPS saniyede kaç kare
+  use_picamera: false      # Raspberry Pi kamera kullan (sadece RPi üzerinde çalışırken)
+  
+  # Network Stream - RPi'den görüntü almak için
+  # Bu değer varsa diğer kamera ayarları göz ardı edilir
+  # RPi'de rpi_streamer.py çalıştırın, ardından buraya IP adresini yazın
+  stream_url: null         # Örnek: "http://192.168.1.100:8080/video"
+  # stream_url: "http://192.168.1.100:8080/video"  # Aktif etmek için yorumu kaldır
+  
+  fov_horizontal: 60.0     # Yatay görüş açısı (derece) - kameranızın FOV değeri
+  fov_vertical: 45.0       # Dikey görüş açısı (derece) - kameranızın FOV değeri
+
+# ===== YOLO Ayarları =====
+detection:
+  model_path: "models/yolov8n.pt"  # Model dosya yolu
+  confidence: 0.5                   # Minimum güven eşiği %50 den büyük olanlar için 
+  device: "auto"                    # 'cpu', 'cuda', veya 'auto' otomatik olarak belirlenir
+  target_classes:                   # Takip edilecek sınıflar (boş = hepsi) buraya eğitilmiş sınıflarını yaz
+    # - "person"
+    # - "balloon" balon eğittim
+    # - "drone"
+
+# ===== PID Kontrolcü Ayarları =====
+pid:
+  pan:                      # Pan motor için PID ayarları yatay ekseni için sağ sol
+    kp: 0.15                # Oransal kazanç anlık hata için 
+    ki: 0.01                # İntegral kazanç toplam hata için
+    kd: 0.08                # Türev kazanç hata değişim hızı için
+  tilt:                     # Tilt motor için PID ayarları dikey ekseni için yukarı aşağı
+    kp: 0.15                # Oransal kazanç anlık hata için 
+    ki: 0.01                # İntegral kazanç toplam hata için
+    kd: 0.08                # Türev kazanç hata değişim hızı için
+  output_min: -100.0        # Minimum çıkış
+  output_max: 100.0         # Maximum çıkış
+  deadband: 1.0              # Ölü bant (derece) — PID'e artık açı giriyor, 1° ≈ ~10px (640px, 60° FOV ile)
+
+  # Çıkış = Kp × hata + Ki × ∫hata + Kd × (dhata/dt)
+  # Kp = Oransal kazanç
+  # Ki = İntegral kazanç
+  # Kd = Türev kazanç
+  # hata = Hedef konum - Mevcut konum
+  # ∫hata = Toplam hata
+  # dhata/dt = Hata değişim hızı
+
+  # Çıkış = Kp × hata + Ki × ∫hata + Kd × (dhata/dt)
+  #       ─────────   ──────────   ────────────────
+  #       Proportional  Integral     Derivative
+  #       (Şimdiki)    (Geçmiş)     (Gelecek tahmini)
+
+#   Yüksek Kp: Hızlı tepki ✓ ama salınım yapabilir ✗
+# Düşük Kp:  Salınım yok ✓ ama yavaş ve hedefi bulamayabilir ✗
+
+# Yüksek Ki: Daha fazla koruma ✓ ama yavaş hareket ✗
+# Düşük Ki: Hızlı hareket ✓ ama salınım yapabilir ✗
+
+# Yüksek Kd: Hızlı koruma ✓ ama salınım yapabilir ✗
+# Düşük Kd: Daha fazla koruma ✓ ama yavaş hareket ✗
+
+
+# # Agresif/hızlı takip - drone gibi hızlı hedefler için
+# pid:
+#   pan:
+#     kp: 0.25
+#     ki: 0.02
+#     kd: 0.15
+#   tilt:
+#     kp: 0.20
+#     ki: 0.02
+#     kd: 0.12
+#   deadband: 3
+
+
+
+# ===== Motor Ayarları =====
+motors:
+  # PAN EKSENİ (NEMA 17 Step Motor)
+  pan:
+    motor_type: "stepper"
+    steps_per_revolution: 200    # 1.8 derece/adım
+    microstepping: 16            # Sürücü ayarı
+    gear_ratio: 1.0              # Dişli oranı
+    max_speed: 1000.0            # adım/saniye
+    acceleration: 500.0          # adım/saniye^2
+    min_angle: -180.0
+    max_angle: 180.0
+
+  # TILT EKSENİ (JGY-370 DC Motor + Enkoder)
+  tilt:
+    motor_type: "dc_encoder"
+    encoder_ppr: 11              # JGY-370 arka encoder PPR (Tur başına 11 pulse)
+    gear_ratio: 90.0             # Redüksiyon oranı (örn: 1:90) -> Mil çıkışında 11*4*90 = 3960 count/tur
+    max_speed: 5000.0            # count/saniye (enkoder hızı step'ten yüksek olabilir)
+    acceleration: 2000.0         # count/saniye^2
+    min_angle: -45.0
+    max_angle: 90.0
+    
+    # Not: Tilt motoru DC olduğu için PID çıkışı (hız) doğrudan PWM olarak da kullanılabilir 
+    # ama burada pozisyon kontrolü için hedef count hesaplanıyor.
+
+
+# ===== Serial Haberleşme Ayarları =====
+serial:
+  port: "/dev/ttyUSB0"      # Serial port ("/dev/ttyACM0", "COM3" vb.)
+  baudrate: 115200          # Baud rate
+  timeout: 0.1              # Okuma timeout (saniye) 100 ms içinde cevap gelmezse geç
+  auto_reconnect: true      # Otomatik yeniden bağlan bağlantı kopukçağında otomatik yeniden bağlan
+
+# ===== Takip Ayarları =====
+tracking:
+  enabled: true             # Takip aktif mi false olursa takip yapmaz
+  target_threshold: 15      # Hedefte kabul eşiği (piksel) 15 piksel içinde hedefi takip eder
+  lost_target_timeout: 3.0  # Hedef kayıp timeout (saniye) kaybolunca 3 saniye sonra arama moduna geç
+  search_mode: false        # Hedef kaybolunca arama modu false olursa arama yapmaz
+
+# ===== Görselleştirme =====
+display:
+  show_video: true          # Video penceresini göster true olursa video penceresini gösterir
+  show_crosshair: true      # Nişangah göster true olursa nişangahı gösterir
+  show_info: true           # Bilgi overlay göster true olursa bilgi overlay'ı gösterir
+  record_video: false       # Video kaydet true olursa video kaydeder
+  output_path: "output/"    # Kayıt çıkış klasörü
+
+# ===== Debug =====
+debug:
+  log_level: "INFO"         # DEBUG, INFO, WARNING, ERROR
+  print_fps: true           # FPS yazdır true olursa FPS yazdırır
+  print_pid_terms: false    # PID terimlerini yazdır true olursa PID terimlerini yazdırır

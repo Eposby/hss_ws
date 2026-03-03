@@ -1,0 +1,128 @@
+Aşama 2 (Sürü Saldırısı) hareketli hedefler içerdiği için, LiDAR yerine kamera kullanmak hem cesur hem de uygulanabilir bir karardır. Ancak LiDAR'ın sağladığı "kesinliği" kamerada matematiksel hilelerle yakalamanız gerekir.
+
+Bu aşamada hedefler **A noktasından B noktasına** hareket edeceği için, nesnenin kameraya olan açısı sürekli değişecektir. Bu durum basit genişlik ölçümünü yanıltabilir.
+
+İşte Mono veya Stereo kamera için kurman gereken algoritma mantığı ve akış şeması:
+
+---
+
+### 1. Karar: Mono mu, Stereo mu?
+
+Bu aşama için **Mono Kamera (Tek Kamera) + Perspective-n-Point (PnP)** algoritmasını öneririm.
+
+* **Neden Stereo Değil?** Stereo kameraların (Örn: ZED 2 veya OAK-D) 15 metre mesafede hassasiyeti düşer. İki kamera arasındaki mesafe (baseline) 10-20 cm ise, 10 metreden sonra hata payı artar. Ayrıca işlemci yükü (disparity map hesabı) çok fazladır.
+* **Neden Mono?** Hedeflerin boyutlarını (gerçek mm cinsinden) biliyorsun. Bu senin en büyük avantajın. Tek bir kamera ve doğru matematik ile hedefin duruş açısını (bize dönük mü, yan mı duruyor) ve mesafesini hesaplayabilirsin.
+
+---
+
+### 2. Aşama 2 İçin Algoritma Akışı
+
+Bu algoritma bir döngü (Loop) içinde sürekli çalışmalıdır.
+
+#### Adım 1: Sınıflandırma ve Boyut Eşleştirme (Lookup Table)
+
+YOLO modeli hedefi bulduğunda sana bir `Class ID` verir (Örn: `0: F16`, `1: IHA`). Kodun arka planında bu ID'lerin gerçek boyutlarını tutan bir sözlük (dictionary) olmalı.
+
+```python
+# Gerçek dünya boyutları (mm cinsinden - Yarışma öncesi ölçülmeli)
+TARGET_DIMENSIONS = {
+    "f16":     {"width": 500, "height": 150, "length": 700},
+    "iha":     {"width": 400, "height": 200, "length": 400},
+    "missile": {"width": 100, "height": 600, "length": 100} # Dikey olduğu için height önemli
+}
+
+```
+
+#### Adım 2: 3 Boyutlu Poz Kestirimi (SolvePnP)
+
+Aşama 2'de hedefler kıvrımlı bir yolda gidiyor. Hedef yan döndüğünde genişliği azalmış gibi görünür. Basit "üçgen benzerliği" kullanırsan sistem "Hedef küçüldü, demek ki uzaklaştı" sanar ve hata yapar.
+
+Bunu çözmek için **OpenCV `solvePnP**` kullanmalısın.
+
+1. **3D Noktalar:** Hedefin köşe noktalarını (X,Y,Z) sanal dünyada tanımla.
+2. **2D Noktalar:** Görüntüde bu köşelerin (piksel) yerini bul (YOLO Keypoints veya Bounding Box köşeleri).
+3. **Matematik:** `solvePnP` sana hedefin **Rotasyonunu (R)** ve **Translation (T - Uzaklık)** vektörünü verir. `T` vektörünün Z bileşeni senin net mesafendir.
+
+#### Adım 3: Gürültü Filtreleme (Kalman Filtresi)
+
+Kamera verisi çok titrer (Örn: Bir karede 12.1m, diğerinde 12.8m, sonra 11.9m ölçersin). Taret bu veriye göre hareket ederse titreme krizine girer.
+
+* **Çözüm:** Ölçülen mesafeyi ve konumu **Kalman Filtresi**'ne sok. Filtre sana "Gerçek değer muhtemelen 12.2m" diyecek ve pürüzsüz bir takip sağlayacaktır.
+
+#### Adım 4: Önleme Atışı (Lead Angle Calculation)
+
+Hedef hareketli olduğu için, şu an olduğu yere ateş edersen mermi/lazer gidene kadar hedef ilerlemiş olur.
+
+* **Hesap:**
+1. Kalman filtresinden hedefin hızını () al.
+2. Merminin hedefe ulaşma süresini () hesapla.
+3. Hedefin gelecekteki konumunu bul: .
+4. Taretti  konumuna çevir.
+
+
+
+---
+
+### 3. Örnek Kod Mantığı (Python/Pseudo-Code)
+
+Aşağıdaki yapı, Aşama 2'yi yöneten ana döngü örneğidir:
+
+```python
+import cv2
+import numpy as np
+
+# Kamera Kalibrasyon Matrisi (Önceden hesaplanmalı!)
+# Fx, Fy: Odak uzaklığı, Cx, Cy: Optik merkez
+K = np.array([[1000, 0, 640],
+              [0, 1000, 360],
+              [0, 0, 1]])
+
+while True:
+    frame = camera.read()
+    
+    # 1. YOLO ile Tespit
+    detections = model.predict(frame)
+    
+    for det in detections:
+        class_name = det.class_name # Örn: "IHA"
+        box = det.box               # x, y, w, h
+        
+        # 2. Mesafe Tahmini (Basit Yöntem: Dikey Yükseklik Kullanarak)
+        # Hedefler yan dönse bile YÜKSEKLİKLERİ (yerden yüksekliği) çok değişmez.
+        # Bu yüzden genişlik yerine yüksekliği referans almak daha güvenlidir.
+        real_height = TARGET_DIMENSIONS[class_name]["height"]
+        pixel_height = box.h
+        
+        # distance = (Focal_Length * Real_Height) / Pixel_Height
+        distance_mm = (K[1,1] * real_height) / pixel_height
+        distance_m = distance_mm / 1000.0
+        
+        # 3. Hareketli Hedef Analizi (Aşama 2 Kritiği)
+        # Eğer mesafe > 15m ise ateş etme, bekle.
+        if distance_m <= 15.0:
+            
+            # Kalman filtresi ile düzeltilmiş koordinatları al
+            smooth_x, smooth_y, smooth_dist = kalman.update(box.center_x, box.center_y, distance_m)
+            
+            # Hedefin gidiş yönüne göre namluyu biraz önüne çevir
+            aim_x = calculate_lead_angle(smooth_x, target_speed)
+            
+            # Tareti çevir ve ateşle
+            turret.move_to(aim_x, smooth_dist)
+            
+            if is_locked_on(aim_x, smooth_dist):
+                turret.fire()
+
+
+```
+
+### Aşama 2 İçin Kritik İpuçları:
+
+1. **Dönüş Problemi:** Hedefler parkurda "U" dönüşü yaparken yan profilden görünür. Bu sırada genişlik bazlı hesaplama yaparsan mesafe aniden yanlış çıkar. Algoritmana şunu ekle:
+* *Eğer Bounding Box oranı (Aspect Ratio) aniden değişirse (Kare iken dikdörtgen olursa), hedef dönüyordur. Önceki mesafe verisini koru, yeni ölçüme güvenme.*
+
+
+2. **Yükseklik Referansı:** İHA ve F16 maketlerinin kanat açıklığı dönünce değişir ama **yerden yüksekliği (Height)** dönüş sırasında daha az değişir (Target banking yapmıyorsa). Mesafe formülünde  (genişlik) yerine  (yükseklik) kullanman daha stabil sonuç verir.
+3. **FPS:** Kamera en az 60 FPS olmalı. 30 FPS'de hareketli hedefler "bulanık" çıkar (Motion Blur). Bulanık hedefin boyutunu YOLO yanlış hesaplar, bu da mesafeyi yanlış çıkarır.
+
+**Özetle:** Aşama 2 için kodunu yazarken; sadece "hedefi bul" değil, "hedefin hızını ve gelecekteki konumunu tahmin et" mantığına odaklanmalısın. `Kalman Filter` araştırması yapmanı şiddetle öneririm.

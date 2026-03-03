@@ -1,0 +1,26 @@
+# Pan-Tilt Nesne Takip Sistemi
+# Python bağımlılıkları
+
+# Görüntü işleme
+opencv-python>=4.8.0
+numpy>=1.24.0
+
+# YOLO nesne algılama
+ultralytics>=8.0.0
+torch>=2.0.0
+
+# Serial haberleşme
+pyserial>=3.5
+
+# Yapılandırma
+pyyaml>=6.0
+
+# Raspberry Pi kamera (opsiyonel)
+# picamera2>=0.3.0
+
+# Test ve debug
+matplotlib>=3.7.0
+pytest>=7.0.0
+
+# Opsiyonel: TCP/IP haberleşme için
+# pyzmq>=25.0.0

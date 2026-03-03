@@ -1,0 +1,5 @@
+build/
+install/
+log/
+*.mp4
+*.bag

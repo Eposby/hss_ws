@@ -1,0 +1,98 @@
+Görüntü işleme ile nesneyi tespit ettikten sonra (örneğin YOLO ile bir "Bounding Box" çizdirdikten sonra), bu 2 boyutlu (piksel) veriyi 3 boyutlu (gerçek dünya) koordinatlara çevirmek zorundasın. Yarışma ortamında hedefler belirli maketler olduğu için (boyutları bellidir), bunu tek bir kamera ile matematiksel olarak çözebiliriz.
+
+İşte bu problemi çözmek için en etkili stratejiler ve matematiksel altyapı:
+
+---
+
+### 1. Strateji: Konum Hesabı (Açısal Sapma)
+
+Kameran taretin (silahın) üzerine monte edilmişse, hedefin görüntünün merkezinden ne kadar uzakta olduğu, taretin ne kadar dönmesi gerektiğini söyler.
+
+Bunun için **FOV (Field of View - Görüş Açısı)** yöntemini kullanacağız.
+
+1. **Merkezden Sapmayı Bul:**
+Nesnenin merkez noktasına , görüntünün tam orta noktasına  diyelim.
+
+
+
+2. **Piksel Başına Düşen Açıyı Hesapla:**
+Kameranın yatay görüş açısı (FOV) bellidir (Örn: 60 derece).
+
+
+3. **Hedef Açısını Bul:**
+Taretin dönmesi gereken açı (Yaw ve Pitch):
+
+
+
+
+Bu hesap sana taretin o anki konumuna göre kaç derece sağa/sola veya yukarı/aşağı gitmesi gerektiğini verir.
+
+---
+
+### 2. Strateji: Uzaklık Hesabı (Derinlik Kestirimi)
+
+Burada iki ana yöntem vardır. Yarışma kurallarına göre hedef tipleri (F16, İHA vb.) belli olduğu için **"Bilinen Genişlik Yöntemi" (Triangle Similarity)** en hızlı ve ucuz çözümdür.
+
+#### Yöntem A: Üçgen Benzerliği (Monocular Distance Estimation)
+
+Bu yöntem için hedefin gerçek hayattaki genişliğini (mm cinsinden) bilmen gerekir. Yarışmadan önce maketlerin ölçülerini mutlaka almalısın.
+
+**Formül:**
+
+
+* **:** Uzaklık (Hesaplamak istediğimiz değer)
+* **:** Hedefin gerçek genişliği (Örn: Maket F16 kanat açıklığı 50 cm).
+* **:** Görüntü işlemeden gelen Bounding Box'ın piksel genişliği.
+* ** (Focal Length):** Kameranın odak uzaklığı (Bunu kalibre ederek bulmalısın).
+
+** (Odak Uzaklığı) Nasıl Bulunur? (Kalibrasyon)**
+
+1. Hedefi kameradan bilinen bir uzaklığa koy (Örn: 10 metre).
+2. Resmini çek ve piksel genişliğini ölç.
+3. Şu formülü uygula: 
+4. Bu  değerini koduna sabit (constant) olarak göm.
+
+#### Yöntem B: Perspektif-n-Nokta (SolvePnP)
+
+Eğer hedefin sadece genişliğini değil, duruş açısını da (bize yan mı bakıyor, düz mü geliyor) bilmen gerekiyorsa OpenCV'deki `solvePnP` fonksiyonu kullanılır.
+
+* Hedefin 3B modelindeki köşe noktalarını (3D Points) tanımlarsın.
+* Görüntüdeki karşılık gelen 2B noktaları (2D Points) bulursun.
+* Bu fonksiyon sana hem uzaklığı (Translation Vector) hem de dönüşü (Rotation Vector) verir.
+* *Not: Bu yöntem işlemciyi daha çok yorar, 1. Yöntem (Üçgen Benzerliği) yarışma için daha pratiktir.*
+
+---
+
+### 3. Strateji: Balistik Düzeltme (Yerçekimi Etkisi)
+
+Görüntü işleme sana hedefin "şu anki" konumunu verir. Ancak mermi/lazer hedefe gidene kadar yerçekimi etkisiyle aşağı düşebilir (Airsoft veya boya topu atıyorsanız). Lazer kullanıyorsanız bu adımı atlayabilirsiniz.
+
+Eğer fiziksel mühimmat atıyorsanız, bulduğunuz "Y" (yükseklik) değerine bir **düzeltme katsayısı** eklemelisiniz.
+
+
+*(Basitleştirilmiş balistik formül; : yerçekimi, : uzaklık, : mermi hızı)*
+
+Genellikle yarışmalarda bu kadar karmaşık formül yerine, uzaklığa bağlı bir tablo (Look-up Table) kullanılır:
+
+* 5 metrede: +1 derece yukarı nişan al.
+* 10 metrede: +2 derece yukarı nişan al.
+* 15 metrede: +3.5 derece yukarı nişan al.
+
+---
+
+### Özet Yol Haritası (Kodlama İçin)
+
+Bu sistemi kurarken Python/OpenCV tarafında şu akışı izlemelisin:
+
+1. **Tanımlama:** `model.predict()` ile nesneyi bul  Bounding Box  al.
+2. **Merkezleme:** Kutunun merkezini  bul.
+3. **Uzaklık Hesabı:** `distance = (Focal_Length * Real_Width) / w` formülü ile mesafeyi ölç.
+4. **Konum Hesabı:**
+* `sapma_x = cx - ekran_genisligi/2`
+* `açı_x = sapma_x * piksel_başına_açı`
+
+
+5. **Filtreleme:** Hesaplanan uzaklık ve açı değerleri çok titrer. `Moving Average` veya `Kalman Filtresi` kullanarak bu verileri yumuşat.
+6. **Seri Haberleşme:** Hesaplanan `(Mesafe, Açı_X, Açı_Y)` verisini Arduino/STM32'ye gönder.
+
+**Soru:** Kamera ile silah namlusu yanyana mı duracak yoksa üst üste mi? Bu, "Paralaks Hatası"nı düzeltmek için kodda küçük bir offset (kaydırma) yapmamızı gerektirebilir.

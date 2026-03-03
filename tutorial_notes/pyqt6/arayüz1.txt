@@ -1,0 +1,156 @@
+Teknofest **Çelik Kubbe Hava Savunma Sistemleri** yarışması için tasarlayacağın arayüz, sadece bir görsel değil; otonom karar verme süreçlerini izleyen ve gerektiğinde manuel müdahale imkanı sunan bir **Komuta Kontrol (C2)** merkezi niteliğinde olmalıdır.
+
+Yarışma şartnamesi ve askeri standartlara dayalı olarak hazırladığım arayüz tasarım rehberi aşağıdadır:
+
+---
+
+## 1. Arayüzün Ana Bileşenleri
+
+Bir hava savunma sistemi arayüzü, operatörün "durumsal farkındalığını" en üst düzeye çıkarmalıdır. Ekranını 4 ana bölgeye ayırmanı öneririm:
+
+### A. Taktik Harita / Radar Ekranı (Merkez)
+
+* **Radar Görünümü:** 2D veya 2.5D kuş bakışı harita. Merkezin senin bataryan olduğu dairesel bir radar ekranı.
+* **Hedef Sembolojisi:** Dost (Mavi), Düşman (Kırmızı) ve Belirsiz (Sarı) hedefler farklı ikonlarla gösterilmeli.
+* **İz Geçmişi (Trail):** Hedefin son 5-10 saniyedeki rotasını gösteren ince çizgiler.
+
+### B. Hedef Listesi ve Veri Paneli (Sağ)
+
+* **Önceliklendirme:** Tehdit seviyesine göre (mesafe, hız, irtifa) sıralanmış bir liste.
+* **Hedef Detayı:** Seçili hedefin hızı,  koordinatları ve tahmini varış süresi (Time to Impact).
+* **Kilitlenme Durumu:** "Kilitlendi", "Takip Ediliyor", "İmha Edildi" gibi durum göstergeleri.
+
+### C. Sistem Durum ve Aviyonik Paneli (Sol)
+
+* **Batarya Durumu:** Servo motorların sıcaklığı, mühimmat sayısı, pil seviyesi.
+* **Pan-Tilt Açıları:**  arası anlık konum göstergesi.
+* **Hata Kayıtları (Log):** Sistemden gelen anlık verilerin (Seri port çıktısı gibi) aktığı küçük bir pencere.
+
+### D. Kontrol ve Manuel Müdahale (Alt)
+
+* **Mod Seçimi:** Tam Otonom / Yarı Otonom / Manuel Geçiş butonları.
+* **Acil Durum (Scram):** Tek tuşla tüm sistemi durduran veya güvenli konuma alan "Emergency Stop".
+* **Kalibrasyon:** OpenCV için renk maskesi (HSV) ayarları veya PID değerleri için kaydırma çubukları (sliders).
+
+---
+
+## 2. Şartnameye Uygun Kritik Özellikler
+
+Teknofest 2026 şartnamesindeki görevlere göre arayüzüne eklemen gereken özel fonksiyonlar:
+
+* **Atışa Yasak Alan Tanımlama:** Harita üzerinde belirli bir açı aralığını (Örn:  arası) "yasak bölge" olarak işaretleyebilmelisin. Arayüzde bu bölge taralı kırmızı bir alan olarak görünmeli.
+* **Dinamik Eşik Ayarları:** Yarışma alanındaki ışık değişimlerine karşı OpenCV maske ayarlarını (Min/Max HSV) anlık değiştirebileceğin bir panel olmalı.
+* **Kamera Görüntüsü (HUD):** Radar ekranının bir köşesinde veya merkezinde, YOLOv8'in tespit kutucuklarını (bounding boxes) içeren canlı video akışı bulunmalı.
+
+---
+
+## 3. Teknik Tasarım Tavsiyeleri
+
+* **Renk Paleti:** Göz yorgunluğunu azaltmak ve kritik uyarıları öne çıkarmak için "Dark Mode" (Koyu Gri/Siyah zemin üzerine Neon Yeşil veya Turuncu metinler) kullan.
+* **Yazılım Seçimi:** * **Python + PyQt6 / Tkinter:** En hızlı ve esnek çözüm.
+* **Web Tabanlı (React/Vue):** Eğer sistemi Ethernet üzerinden bir tarayıcıdan izleyeceksen çok şık durur.
+* **ROS 2 Rviz:** Eğer ROS 2 kullanıyorsan, Rviz üzerinde kendi plugin'lerini yazabilirsin.
+
+
+
+---
+
+### Bir Sonraki Adım
+
+Arayüzü kodlamaya başlamak için **PyQt6** kullanarak temel bir **HSS Kontrol Paneli** taslağı hazırlayabilirim. İstersen önce hangi bölmeden (Radar mı, Kamera akışı mı, Kontrol butonları mı) başlayacağımıza karar verelim.
+
+Bu video, hava savunma sistemleri için arayüz tasarlarken kullanılan profesyonel yaklaşımları ve durumsal farkındalık unsurlarını anlaman için iyi bir örnek teşkil edecektir: [Askeri Sistemlerde Kullanıcı Deneyimi ve Arayüz Tasarımı](https://www.youtube.com/watch?v=9Td_dxI3j_k)
+
+
+
+
+
+---------------------------------------------------------------------------------------------------------------------------
+
+
+İlk kez arayüz tasarlayacak biri için bu iki kütüphane arasındaki farkı şöyle özetleyebilirim: **Tkinter**, "Hemen bir pencere açıp buton koyayım" diyenler içindir; **PyQt6** ise "Ben profesyonel, şık ve genişletilebilir bir sistem kurmak istiyorum" diyenler içindir.
+
+Senin durumunda (Teknofest Çelik Kubbe), kesinlikle **PyQt6** seçmeni öneririm. Nedenlerini ve nasıl başlayacağını aşağıda adım adım açıklıyorum.
+
+---
+
+### 1. Neden PyQt6'yı Seçmelisin?
+
+* **Sürükle-Bırak Kolaylığı:** PyQt6 ile birlikte gelen **Qt Designer** aracı sayesinde, kod yazmadan arayüzünü bir çizim programı gibi tasarlayabilirsin. Butonları, göstergeleri ve kamera ekranını sürükleyip bırakarak yerleştirir, sonra bunu Python koduna çevirirsin.
+* **Görsellik:** Hava savunma sistemleri için gereken o "karanlık mod" ve "teknolojik" görünümü PyQt6 (ve CSS benzeri QSS kodları) ile çok daha kolay verirsin.
+* **Performans:** Kamera görüntüsünü (OpenCV) saniyede 30 kare hızla ekrana basarken PyQt6 çok daha akıcıdır. Tkinter bu konuda bazen takılabilir.
+
+---
+
+### 2. Başlangıç Yol Haritan
+
+Hiç bilmeyen biri olarak şu sırayı izlemen seni en hızlı sonuca ulaştırır:
+
+#### Adım 1: Kurulum
+
+Terminaline (veya komut istemine) şu komutu yazarak kütüphaneyi ve tasarım aracını yükle:
+
+```bash
+pip install PyQt6 PyQt6-tools
+
+```
+
+#### Adım 2: Qt Designer'ı Tanı
+
+Bilgisayarında `designer.exe` dosyasını bulup aç (Genelde Python klasörünün içindedir).
+
+* Burada bir **"Main Window"** oluştur.
+* Sol taraftaki listeden bir `Label` (Kamera görüntüsü için), bir `PushButton` (Ateşleme için) ve bir `Slider` (Hız ayarı için) sürükle.
+* Bunu `.ui` uzantısıyla kaydet.
+
+#### Adım 3: Temel Kod Yapısı
+
+İşte bir pencere açan en basit PyQt6 şablonu. Bu kodu kopyalayıp çalıştırdığında ilk arayüzün hazır olacak:
+
+```python
+import sys
+from PyQt6.QtWidgets import QApplication, QWidget, QPushButton, QVBoxLayout, QLabel
+
+class CelikKubbeArayuz(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Çelik Kubbe Kontrol Paneli")
+        self.setGeometry(100, 100, 400, 300) # Pencere boyutu
+
+        # Düzen oluştur (Dikey sıralama)
+        layout = QVBoxLayout()
+
+        # Bir yazı etiketi ekle
+        self.label = QLabel("Sistem Durumu: Beklemede", self)
+        layout.addWidget(self.label)
+
+        # Bir buton ekle
+        self.btn = QPushButton("Sistemi Başlat", self)
+        self.btn.clicked.connect(self.baslat_tiklandi) # Butona basınca ne olacağını söyle
+        layout.addWidget(self.btn)
+
+        self.setLayout(layout)
+
+    def baslat_tiklandi(self):
+        self.label.setText("Sistem Durumu: AKTİF - Hedef Aranıyor...")
+
+app = QApplication(sys.argv)
+pencere = CelikKubbeArayuz()
+pencere.show()
+sys.exit(app.exec())
+
+```
+
+---
+
+### 3. Çelik Kubbe İçin Özel İpucu: Matplotlib Entegrasyonu
+
+Radar ekranı yapmak için PyQt6'nın içine **Matplotlib** kütüphanesini gömebilirsin. Bu sayede radar üzerindeki noktaları (hedefleri) dinamik olarak güncelleyebilirsin.
+
+---
+
+### İlk Görevin:
+
+Öncelikle `PyQt6` ve `PyQt6-tools` kurulumunu yapıp bir boş pencere açmayı dene. Bunu başardığında, seninle **Qt Designer üzerinden hazırladığın tasarımı Python koduna nasıl bağlayacağımızı** ve **OpenCV görüntüsünü bu pencereye nasıl canlı olarak yansıtacağımızı** çalışabiliriz.
+
+Kurulumu yaparken bir hata alırsan hemen paylaş, beraber çözelim. Ne dersin, ilk boş pencereyi açmaya hazır mısın?

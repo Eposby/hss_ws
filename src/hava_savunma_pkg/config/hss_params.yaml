@@ -1,0 +1,17 @@
+# Hava Savunma Sistemi - Target Detector Configuration
+target_detector:
+  ros__parameters:
+    detection_rate: 10.0       # Hz
+    min_area: 500.0            # Minimum tespit alanı (piksel)
+    max_area: 50000.0          # Maksimum tespit alanı (piksel)
+    friend_color: "green"      # Dost rengi
+    foe_color: "red"           # Düşman rengi
+
+turret_controller:
+  ros__parameters:
+    pan_min: -3.14159          # -180 derece
+    pan_max: 3.14159           # +180 derece
+    tilt_min: -0.785           # -45 derece
+    tilt_max: 1.047            # +60 derece
+    pan_speed: 1.0             # rad/s
+    tilt_speed: 0.5            # rad/s
