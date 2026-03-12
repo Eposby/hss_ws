@@ -327,27 +327,3 @@ ROS_LOG_DIR=/tmp ros2 run hava_savunma_pkg balloon_detector --ros-args --log-lev
 MIT Lisansı altında yayınlanmaktadır. Detay için [LICENSE](LICENSE) dosyasına bakınız.
 
 ---
-
-## 👤 İletişim
-
-**Proje Sahibi**: Mert  
-**Email**: mert@teknofest.com  
-**Başlangıç Tarihi**: 2026  
-
-Sorularınız için [Issues](../../issues) bölümünü kullanınız.
-
----
-
-## ✅ Başlangıç Kontrol Listesi
-
-Yeni kurulum sonrası aşağıdakileri kontrol edin:
-
-- [ ] ROS2 ortamı doğru şekilde kurulmuş
-- [ ] `colcon build` başarı ile tamamlanır
-- [ ] `source install/setup.bash` çalışır
-- [ ] `ros2 --version` ROS2 sürümünü gösterir
-- [ ] `ros2 pkg list` paketleri listelenmiş
-- [ ] Kamera ve Arduino bağlantıları test edilmiş
-- [ ] İlk launch başarı ile başlatılmış
-
-Hepsi tamamlandıktan sonra geliştirmeye başlayabilirsiniz! 🎉
