@@ -1,0 +1,41 @@
+camera_node:
+  ros__parameters:
+    camera_id: 0
+    width: 640
+    height: 480
+    fps: 30
+    use_picamera: false
+    stream_url: ""
+
+detection_node:
+  ros__parameters:
+    model_path: "src/prototip/models/yolov8n.pt"
+    confidence: 0.5
+    device: "auto"
+    target_classes: []
+
+control_node:
+  ros__parameters:
+    pid:
+      pan:
+        kp: 0.15
+        ki: 0.01
+        kd: 0.08
+      tilt:
+        kp: 0.15
+        ki: 0.01
+        kd: 0.08
+      output_min: -100.0
+      output_max: 100.0
+      deadband: 1.0
+    camera:
+      width: 640
+      height: 480
+      fov_horizontal: 60.0
+      fov_vertical: 45.0
+
+serial_node:
+  ros__parameters:
+    port: "/dev/ttyUSB0"
+    baudrate: 115200
+    auto_reconnect: true

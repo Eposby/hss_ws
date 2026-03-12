@@ -6,24 +6,35 @@ Sistem kurgusunda yer alan temel yazılım, algoritma ve framework bileşenleri 
 
 ### 1.1 Yazılım ve Algoritma Bilgi Tablosu
 
-| Yazılım Adı / Algoritma | Görevi / İşlevi | Üretici / Geliştirici | Versiyon |
+
+|BİLEŞENLER|ÜRETİCİ|VERSİYON|ÖZELLİKLERİ|
 | :--- | :--- | :--- | :--- |
-| **YOLOv8** | Hedef tespiti, sınıflandırma (Uçak, İHA vb.) ve bounding box çıkarma. | Ultralytics | v8 |
-| **OpenCV** | Görüntü işleme, kamera akışı alma (USB/Network/PiCamera), ekrana çizim (vizyon). | OpenCV (Açık Kaynak) | 4.x |
-| **PyQt6** | Kullanıcı arayüzü (GUI), çoklu thread (iş parçacığı) yönetimi ve sistem logları. | Riverbank Computing | 6.x |
-| **PySerial** | Python tabanlı ana kontrolcü ile Arduino (motor sürücü anakart) arasındaki UART iletişimi. | Python Software Foundation | 3.x |
-| **AccelStepper** | Step motorun ivmeli (hızlanıp yavaşlayarak) yumuşak ve hassas sürüşü. | Mike McCauley | Son Sürüm |
-| **ArduinoJson** | Ana bilgisayardan gelen metin (JSON) tabanlı komutların mikrodenetleyici tarafında ayrıştırılması. | Benoit Blanchon | 6.x / 7.x |
-| **Çift Eksenli (DualAxis) PID Algoritması** | Görüntü işleme merkezinden alınan piksel hatasını sıfıra indirmek için motor güç çıkışı hesaplama. | Özel Geliştirme (Takımınız) | Özel |
-| **Motor Açı-Piksel Dönüşüm Algoritması** | Kameranın yatay/dikey görüş açısı (FOV) ile pikselleri dereceye (açıya) dönüştürme ve ardından encoder/step birimine çevirme. | Özel Geliştirme (Takımınız) | Özel |
+| **YOLOv8** | Ultralytics | v8.x | Hava hedeflerinin (İHA/Balon) gerçek zamanlı tespiti, sınıflandırılması ve koordinatlarının ROS 2 topic'lerine aktarılması.|
+| **OpenCV** | OpenCV | 4.x |Görüntü işleme, bağımsız kamera akışı alma ve sensor_msgs/Image formatında ROS 2 ağına basma.|
+| **PyQt6** | Riverbank Computing | 6.x | Kullanıcı arayüzü (GUI) sunma ve ROS 2 ağına abone olarak sistem logları ile anlık kamera görüntülerini eşzamanlı gösterme.|
+| **micro-ROS** | eProsima | Son Sürüm | ESP32 mikrodenetleyicisini doğrudan ROS 2 ağına bir düğüm (node) olarak bağlamak ve motor komutlarına donanım seviyesinde abone olmak.|
+| **AccelStepper** | Mike McCauley | Son Sürüm | Step motorların ESP32 üzerinden ivmeli (hızlanıp yavaşlayarak) yumuşak ve hassas sürüşünü sağlamak.|
+| **Çift Eksenli (DualAxis) PID Algoritması** |Özgün Tasarım |- | Görüntü işleme merkezinden alınan piksel hatasını sıfıra indirmek için motor güç çıkışını (hata payını) hesaplamak. |
+| **Motor Açı-Piksel Dönüşüm Algoritması** | Özgün Tasarım | -|Kameranın görüş açısı (FOV) ile pikselleri fiziksel dereceye dönüştürüp, hedefin yönelimini motor adım değerlerine formüle etmek.|
+| **ROS 2 (Robot Operating System)** |Open Robotics|Humble|Düğümler (nodes) arası asenkron yayıncı/abone (Pub/Sub) haberleşmesini (DDS) sağlamak; alt sistemleri izole ederek hata toleransını artırmak.|
+
+
+
 
 ### 1.2 Yazılımların Birbirleriyle Arayüzleri ve İletişim Şeması
 
-Bu yazılımlar eşzamanlı ve haberleşmeli bir yapıda çalışır:
-- **Kamera (Capture)** arayüzü, bağımsız bir thread üzerinden sürekli görüntü karesi toplar ve **YOLOv8**'e besler.
-- **YOLOv8**'den alınan hedef pozisyonu (tespit kutusu), ekran merkezi referans alınarak (hata X, hata Y) hesaplanır ve **DualAxis PID Kontrolcüsüne** iletilir.
-- **Motor Dönüşüm Hesaplayıcısı** hedefin yönelimini motor adım / sayım (count) değerlerine formüle eder.
-- **Seri Haberleşme Arayüzü**, **JSON** altyapısıyla bu hareket emirlerini iletir ve **Sensör/Donanım (Arduino)** tarafında **Sürücü Kütüphaneleri (AccelStepper vb.)** ile donanım düzeyinde çalıştırılır.
+- **Görev Yönetim ve Koordinasyon Arayüzü (Mission Control Node)** Sistemin ana karar mekanizması ve orkestratörü olarak çalışan bu merkezi ROS 2 düğümü, alt sistemlerden gelen verileri doğrudan donanıma aktarmak yerine stratejik görev planlamasını ve durum makinası (State Machine) geçişlerini yönetir. Şartnamede belirtilen "yanlış sıradaki hedefin imha edilmesi durumunda 5 ceza puanı" kuralını bertaraf etmek amacıyla gelişmiş bir Hedef Filtreleme ve Doğrulama (Target Discrimination) algoritması koşturur; Tespit Arayüzünden (YOLO) /detection/target_info başlığıyla alınan tüm potansiyel hedef verilerini, operatörün KKS üzerinden girdiği indeks sırasıyla eşleştirerek sadece doğru hedefin koordinatlarını Kontrol Arayüzüne (PID) iletir ve hatalı kilitlenme riskini sıfıra indirir. Buna ek olarak, hedefin anlık olarak görüş alanından çıkması durumunda "Kestirim (Coasting)" modunu tetiklemek gibi otonom senaryoları yönetirken, KKS üzerinden yayınlanan Acil Durdurma (E-Stop) komutlarına sürekli abone olarak, sistemin içinde bulunduğu durum (otonom veya manuel) fark etmeksizin tüm motor tahrik komutlarını anında kesen ve taret donanımını "Güvenli Mod"a (Safe State) alan kesintisiz bir emniyet (fail-safe / interrupt) altyapısı sunar.
+
+- **Görüntü Yakalama Arayüzü (Camera Node)** Bağımsız çalışan kamera düğümü, donanımdan sürekli olarak aldığı ham görüntü karelerini işleyerek /camera/image_raw başlığı altında ağa yayınlar (Publish).
+
+- **Hedef Tespit ve Teşhis Arayüzü (YOLOv8 Node)** Tespit düğümü görüntü başlığına abone olur (Subscribe). Görüntü üzerindeki hava hedeflerini (İHA, Balon vb.) tespit eder ve hedefin merkez koordinatları ile bounding box (sınır kutusu) verilerini /detection/target_info başlığında paylaşır.
+
+- **Hata Hesaplama PID Kontrolcüsü ve Kinematik Hesaplayıcı (PID & Motor Calc Node)** Bu arayüz, tespit edilen hedefin piksel verilerini alarak ekran merkezine göre konum hatasını (X ve Y ekseninde) hesaplar. DualAxis PID Kontrolcüsü ile işlenen bu hata payı, Motor Dönüşüm Hesaplayıcısı tarafından fiziksel yönelim ve adım (step) değerlerine formüle edilir. Elde edilen kesin hareket komutları /control/motor_setpoint başlığına aktarılır.
+
+- **Seri Haberleşme Arayüzü (micro-ROS & ESP32)** Ana kontrolcü (PC) ile ESP32 (motor sürücü anakart) arasındaki haberleşme için en güncel yöntem olan micro-ROS (UART/Seri üzerinden) tercih edilmiştir. ESP32, ağda doğrudan bir ROS 2 düğümü gibi davranarak motor komutlarına abone olur. Ekstra bir metin ayrıştırma (JSON parsing) işlemine gerek kalmadan alınan bu komutlar, donanım seviyesinde AccelStepper kütüphanesi ile işlenerek taretin pürüzsüz ve ivmeli hareketini sağlar.
+
+- **Komuta Kontrol Arayüzü (GUI Node - PyQt6)** PyQt6 tabanlı komuta kontrol arayüzü, sistemdeki ilgili topic'leri dinleyerek operatöre canlı video akışını, hedef kilitlenme durumunu ve motorların anlık açısal verilerini (telemetri) eşzamanlı olarak sunar.
+
 
 ```mermaid
 graph TD
