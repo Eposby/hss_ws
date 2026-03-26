@@ -1,0 +1,7 @@
+float32 current_pan_angle
+float32 current_tilt_angle
+int32 current_pan_steps
+int32 current_tilt_steps
+float32 estimated_range
+bool is_moving
+bool is_homed

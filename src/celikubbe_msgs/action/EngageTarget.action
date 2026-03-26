@@ -1,0 +1,13 @@
+# Goal
+celikubbe_msgs/TargetInfo target
+---
+# Result
+bool success
+int32 points_earned
+string result_message
+---
+# Feedback
+string status
+float32 error_x
+float32 error_y
+float32 estimated_range

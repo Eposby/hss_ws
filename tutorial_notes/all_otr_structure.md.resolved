@@ -1,0 +1,193 @@
+# Çelikkubbe Hava Savunma Sistemi — Yeniden Yapılandırma
+
+Mevcut [prototip_ros2](file:///home/mert/hss_ws/src/prototip_ros2) ve [prototip_msgs](file:///home/mert/hss_ws/src/prototip_msgs) paketleri prototip düzeyinde. Eksikler:
+- **Görev node'u yok** (mission control, state machine, aşama yönetimi)
+- **Service/Action tanımları yok** (SetPhase.srv, EngageTarget.action)
+- **E-Stop mekanizması yok**
+- **GUI-ROS2 entegrasyonu yok** (GUI bağımsız PyQt6, ROS2'ye bağlı değil)
+- **Mesaj tipleri yetersiz** (renk, bbox, güven skoru, motor geri bildirim yok)
+
+Plan: Mevcut [pid_controller.py](file:///home/mert/hss_ws/src/prototip_ros2/prototip_ros2/control/pid_controller.py) ve [motor_calculator.py](file:///home/mert/hss_ws/src/prototip_ros2/prototip_ros2/control/motor_calculator.py) library kodlarını **olduğu gibi** koruyarak, iki yeni paket (`celikubbe_msgs`, `celikubbe_ros2`) oluşturup tüm sistemi sıfırdan yapılandırmak.
+
+---
+
+## Proposed Changes
+
+### celikubbe_msgs (Mesaj Paketi)
+
+Yeni CMake-based ROS2 paketi. Tüm custom mesaj, servis ve action tanımlarını barındırır.
+
+#### [NEW] [TargetInfo.msg](file:///home/mert/hss_ws/src/celikubbe_msgs/msg/TargetInfo.msg)
+```
+string target_type          # "balon", "f16", "helikopter", "iha", "balistik_fuze"
+string target_color         # "kirmizi", "mavi"  
+float32 confidence          # 0.0 - 1.0
+int32 pixel_x               # bbox merkez x
+int32 pixel_y               # bbox merkez y
+int32 bbox_width
+int32 bbox_height
+int32 error_x               # merkez-hedef x fark
+int32 error_y               # merkez-hedef y fark
+bool is_tracked
+bool is_friendly            # dost mu?
+int32 target_id
+```
+
+#### [NEW] [MotorSetpoint.msg](file:///home/mert/hss_ws/src/celikubbe_msgs/msg/MotorSetpoint.msg)
+```
+int32 pan_steps
+int32 tilt_steps
+int32 pan_speed
+int32 tilt_speed
+float32 pan_angle_deg
+float32 tilt_angle_deg
+```
+
+#### [NEW] [MotorFeedback.msg](file:///home/mert/hss_ws/src/celikubbe_msgs/msg/MotorFeedback.msg)
+```
+float32 current_pan_angle
+float32 current_tilt_angle
+int32 current_pan_steps
+int32 current_tilt_steps
+float32 estimated_range      # tahmini menzil (m)
+bool is_moving
+bool is_homed
+```
+
+#### [NEW] [SetPhase.srv](file:///home/mert/hss_ws/src/celikubbe_msgs/srv/SetPhase.srv)
+```
+int32 phase    # 1, 2, 3
+---
+bool success
+string message
+```
+
+#### [NEW] [EngageTarget.action](file:///home/mert/hss_ws/src/celikubbe_msgs/action/EngageTarget.action)
+```
+# Goal
+celikubbe_msgs/TargetInfo target
+---
+# Result
+bool success
+int32 points_earned
+string result_message
+---
+# Feedback
+string status              # "tracking", "aiming", "locked", "firing", "waiting_range"
+float32 error_x
+float32 error_y
+float32 estimated_range
+```
+
+#### [NEW] [CMakeLists.txt](file:///home/mert/hss_ws/src/celikubbe_msgs/CMakeLists.txt)
+#### [NEW] [package.xml](file:///home/mert/hss_ws/src/celikubbe_msgs/package.xml)
+
+---
+
+### celikubbe_ros2 (Düğüm Paketi)
+
+Python ament paketi. Mevcut [prototip_ros2](file:///home/mert/hss_ws/src/prototip_ros2)'deki library kodlarını (`control/`, `camera/`, `detection/`, `communication/`) kopyalayıp yeni mesaj tiplerine adapte eder. 6 node + launch + config.
+
+#### [NEW] [kamera_dugumu.py](file:///home/mert/hss_ws/src/celikubbe_ros2/celikubbe_ros2/kamera_dugumu.py)
+- Mevcut [camera_node.py](file:///home/mert/hss_ws/src/prototip_ros2/prototip_ros2/camera_node.py) mantığı + `/kamera/ham_goruntu` topic'ine publish
+- `sensor_msgs/Image` formatında 30 FPS yayın
+
+#### [NEW] [tespit_dugumu.py](file:///home/mert/hss_ws/src/celikubbe_ros2/celikubbe_ros2/tespit_dugumu.py)
+- YOLOv8 entegrasyonu, 0.70 güven eşiği
+- Renk + tip sınıflandırma (Aşama 3: kırmızı=düşman, mavi=dost)
+- `/tespit/hedef_bilgisi` (TargetInfo) + `/tespit/isaretli_goruntu` (Image) publish
+
+#### [NEW] [kontrol_dugumu.py](file:///home/mert/hss_ws/src/celikubbe_ros2/celikubbe_ros2/kontrol_dugumu.py)
+- Mevcut [DualAxisPIDController](file:///home/mert/hss_ws/src/prototip_ros2/prototip_ros2/control/pid_controller.py#166-254) + [MotorCalculator](file:///home/mert/hss_ws/src/prototip_ros2/prototip_ros2/control/motor_calculator.py#49-288) kullanır
+- `/gorev/dogrulanmis_hedef` → PID → `/kontrol/motor_komutu` (MotorSetpoint)
+
+#### [NEW] [donanim_dugumu.py](file:///home/mert/hss_ws/src/celikubbe_ros2/celikubbe_ros2/donanim_dugumu.py)
+- Mevcut [serial_node.py](file:///home/mert/hss_ws/src/prototip_ros2/prototip_ros2/serial_node.py) mantığı + MotorFeedback publish
+- `/donanim/motor_geri_bildirim` topic publish
+
+#### [NEW] [gorev_dugumu.py](file:///home/mert/hss_ws/src/celikubbe_ros2/celikubbe_ros2/gorev_dugumu.py)
+- **State Machine**: `BEKLE → ARAYUZ_HAZIR → ASAMA_TESPIT → HEDEF_TAKIP → HEDEF_NISAN → IMHA_ONAY → ATESLE → IMHA_BASARILI/IPTAL → ASAMA_BASARILI`
+- **SetPhase Service Server**: Aşama seçimini yönetir
+- **EngageTarget Action Server**: Hedef angajmanını yönetir (feedback loop)
+- **E-Stop Handler**: `/arayuz/acil_dur` topic'ten True → tüm motor komutlarını kes, action iptal et
+- Aşama 1/2/3 puan ve tur mantıkları
+- `/gorev/durum`, `/gorev/puan` publish
+
+#### [NEW] [arayuz_dugumu.py](file:///home/mert/hss_ws/src/celikubbe_ros2/celikubbe_ros2/arayuz_dugumu.py)
+- PyQt6 GUI + ROS2 node (ayrı thread'ler)
+- Canlı kamera feed, durum paneli, puan tablosu
+- Aşama seçim butonları (SetPhase service client)
+- E-Stop butonu (`/arayuz/acil_dur` yayını)
+- Operatör komutları (`/arayuz/operator_komutu`)
+
+#### Library Code (copy from prototip_ros2)
+- [control/pid_controller.py](file:///home/mert/hss_ws/src/prototip_ros2/prototip_ros2/control/pid_controller.py) — olduğu gibi kopyalanır
+- [control/motor_calculator.py](file:///home/mert/hss_ws/src/prototip_ros2/prototip_ros2/control/motor_calculator.py) — olduğu gibi kopyalanır
+- [camera/capture.py](file:///home/mert/hss_ws/src/prototip_ros2/prototip_ros2/camera/capture.py) — olduğu gibi kopyalanır
+- [communication/serial_comm.py](file:///home/mert/hss_ws/src/prototip_ros2/prototip_ros2/communication/serial_comm.py) — olduğu gibi kopyalanır
+- [detection/yolo_detector.py](file:///home/mert/hss_ws/src/prototip_ros2/prototip_ros2/detection/yolo_detector.py) — genişletilir (renk/sınıf desteği)
+
+#### [NEW] [celikubbe_launch.py](file:///home/mert/hss_ws/src/celikubbe_ros2/launch/celikubbe_launch.py)
+#### [NEW] [params.yaml](file:///home/mert/hss_ws/src/celikubbe_ros2/config/params.yaml)
+#### [NEW] [setup.py](file:///home/mert/hss_ws/src/celikubbe_ros2/setup.py)
+#### [NEW] [package.xml](file:///home/mert/hss_ws/src/celikubbe_ros2/package.xml)
+
+---
+
+### GUI Tasarımı (Detaylı)
+
+Premium dark-mode arayüz tasarımı:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  🛡 ÇELİK KUBBE SAVUNMA SİSTEMİ    │ DURUM: AKTİF  │ 🔴 │
+├────────────────────────────┬─────────────────────────────────┤
+│                            │  📊 SİSTEM TELEMETRİ           │
+│   📹 CANLI KAMERA FEED    │  Pan: 45.2°  Tilt: 12.8°       │
+│   (640x480 - 30 FPS)      │  Menzil: 8.5m                  │
+│   + Crosshair overlay     │  FPS: 31.2                     │
+│   + Target BBox           │─────────────────────────────────│
+│                            │  🎯 HEDEF BİLGİSİ              │
+│                            │  Tip: F16 | Renk: Kırmızı     │
+│                            │  Güven: 0.94                   │
+│                            │  Durum: TAKİP                  │
+├────────────────────────────┼─────────────────────────────────┤
+│  📌 DURUM MAKİNESİ        │  🏆 PUAN: 45                   │
+│  ● HEDEF_TAKIP (aktif)    │  Tur: 2/4                      │
+│  ○ HEDEF_NIŞAN            │  İmha: 3                       │
+│  ○ ATEŞLE                 │  Aşama: 2                      │
+├────────────────────────────┴─────────────────────────────────┤
+│ [AŞAMA 1] [AŞAMA 2] [AŞAMA 3]  │  [🔫 ATEŞLE]  │ [⛔ DURDUR]│
+└──────────────────────────────────────────────────────────────┘
+```
+
+Tasarım özellikleri:
+- **Glassmorphism** paneller (şeffaf/blur arka plan)
+- **Gradient accent** renkler (teal→cyan)
+- **Micro-animations** (state geçişlerinde pulse efektleri)
+- **Kırmızı/turuncu** tehlike renkleri E-Stop ve ateş butonlarında
+- **Inter** font (Google Fonts)
+
+---
+
+## Verification Plan
+
+### Automated Tests
+1. **Build testi**:
+```bash
+cd /home/mert/hss_ws && colcon build --packages-select celikubbe_msgs celikubbe_ros2
+```
+2. **Interface doğrulama**:
+```bash
+source /home/mert/hss_ws/install/setup.bash
+ros2 interface show celikubbe_msgs/msg/TargetInfo
+ros2 interface show celikubbe_msgs/msg/MotorSetpoint
+ros2 interface show celikubbe_msgs/msg/MotorFeedback
+ros2 interface show celikubbe_msgs/srv/SetPhase
+ros2 interface show celikubbe_msgs/action/EngageTarget
+```
+3. **Node import testi**: Her node'u `python3 -c "from celikubbe_ros2 import ..."` ile import
+
+### Manual Verification
+- GUI'yi `python3 arayuz_dugumu.py` ile bağımsız çalıştırarak görsel doğrulama
+- Launch dosyasıyla tüm sistemi ayağa kaldırma: `ros2 launch celikubbe_ros2 celikubbe_launch.py`
