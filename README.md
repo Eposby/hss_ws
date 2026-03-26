@@ -1,329 +1,111 @@
-# Hava Savunma Sistemi (Air Defense System) - HSS
+# Çelikkubbe Hava Savunma Sistemi (HSS)
 
-Teknofest Hava Savunma Sistemi projesi, hava araçlarını tespit ve takip etmek için tasarlanmış bir otonom hava savunma sistemidir. Proje ROS2 framework'ü kullanılarak geliştirilmiş olup, gerçek zamanlı görüntü işleme, durum yönetimi ve Gazebo simülasyonu içermektedir.
+Teknofest Hava Savunma Sistemleri yarışması için geliştirilmiş, ROS 2 (Humble) tabanlı, dağıtık (distributed) ve gerçek zamanlı otonom çalışan bir hava savunma sistemidir. YOLOv8 ile görsel hedef tespiti, PID ile yatay/dikey eksen kontrolü ve PyQt6 tabanlı gelişmiş bir arayüze sahiptir.
+
+---
 
 ## 📋 Proje Özeti
 
-HSS (Hava Savunma Sistemi), aşağıdaki yetenekleri içerir:
+Çelikkubbe HSS, aşağıdaki yetenekleri içerir:
 
-- **Görüntü İşleme**: YOLO tabanlı hedef tespiti
-- **Durum Yönetimi**: Üç aşamalı (Stage) durum makinesi
-- **Motor Kontrolü**: PID kontrolcü ile hassas motor kontrolü
-- **Gazebo Simülasyonu**: Test ve geliştirme için simülasyon ortamı
-- **Arduino İletişimi**: Seri haberleşme ile donanım kontrolü
+- **Görüntü İşleme**: YOLOv8 tabanlı derin öğrenme ile hedef tespiti ve HSV algoritması ile dost/düşman renk sınıflandırması.
+- **Durum Yönetimi (State Machine)**: Otonom hedef arama, nişan alma, onay bekleme ve ateşleme takibi yapabilen, Aşama 1, 2 ve 3 yarışma kurallarına entegre görev makinesi.
+- **Motor Kontrolü**: Dual-Axis PID (Pan-Tilt) kontrolcü ve piksel hata-açı dönüştürücüsü ile hassas hedef takibi.
+- **Gelişmiş Arayüz (GUI)**: ROS 2 ile tam entegre, PyQt6 ile yazılmış, şeffaf (Glassmorphism) temalı, telemetri ve canlı video feed ekranı barındıran kontrol paneli.
+- **Standartlaştırılmış ROS İletişimi**: Özel oluşturulmuş ROS 2 mesajları (`TargetInfo`, `MotorSetpoint`), Servisleri (`SetPhase`) ve Eylem (Action) sunucuları (`EngageTarget`).
 
 ---
 
 ## 📁 Klasör Yapısı
 
-```
+Sistem, iki ana ROS 2 paketinden oluşmaktadır:
+
+```text
 hss_ws/
-├── src/                              # Kaynak kodlar
-│   ├── hava_savunma_pkg/             # Ana ROS2 paketi (Python)
-│   │   ├── hava_savunma_pkg/         # Paket modülü
-│   │   │   ├── nodes/                # ROS2 düğümleri
-│   │   │   │   └── balloon_detector.py       # Hedef tespit düğümü
-│   │   │   ├── state_machine/        # Durum makinesi mantığı
-│   │   │   │   ├── main.py                   # Durum makinesi ana giriş
-│   │   │   │   ├── machine.py                # Durum makinesi sınıfı
-│   │   │   │   ├── state_idle.py             # Boş durum
-│   │   │   │   ├── state_scanning.py         # Tarama durumu
-│   │   │   │   ├── state_detected.py         # Tespit durumu
-│   │   │   │   ├── stage1_states.py          # Aşama 1 durumları
-│   │   │   │   ├── stage2_states.py          # Aşama 2 durumları
-│   │   │   │   └── stage3_states.py          # Aşama 3 durumları
-│   │   │   ├── utils/                # Yardımcı fonksiyonlar
-│   │   │   ├── launch.py             # ROS2 launch dosyası
-│   │   │   └── test_balloon.py        # Test dosyası
-│   │   ├── launch/                   # ROS2 launch dosyaları
-│   │   │   └── hss_system.launch.py   # Sistem başlatma dosyası
-│   │   ├── config/                   # Konfigürasyon dosyaları
-│   │   ├── package.xml               # ROS2 paket tanımı
-│   │   ├── setup.py                  # Python paket kurulum
-│   │   └── setup.cfg                 # Kurulum konfigürasyonu
+├── src/                                   
+│   ├── celikubbe_msgs/                    # ROS 2 Mesaj, Servis ve Eylem Paketleri
+│   │   ├── msg/
+│   │   │   ├── TargetInfo.msg             # Kapsamlı hedef bilgi mesajı (renk, güven skoru vs.)
+│   │   │   ├── MotorSetpoint.msg          # Pan/Tilt adımları ve hedef hızlar
+│   │   │   └── MotorFeedback.msg          # Güncel açı, adım ve konum geribildirimleri
+│   │   ├── srv/
+│   │   │   └── SetPhase.srv               # Yarışma aşamasını seçme servisi
+│   │   └── action/
+│   │       └── EngageTarget.action        # Hedefe kilitlenme ve ateşleme süreci eylemi
 │   │
-│   ├── hss_gazebo_sim/               # Gazebo simülasyon paketi (C++)
-│   │   ├── src/                      # C++ kaynak kodları
-│   │   ├── include/                  # C++ başlık dosyaları
-│   │   ├── launch/                   # Simülasyon launch dosyaları
-│   │   │   └── simulation.launch.py   # Gazebo simülasyonunu başlatır
-│   │   ├── models/                   # Gazebo 3D modelleri
-│   │   ├── worlds/                   # Gazebo simülasyon dünyaları
-│   │   ├── CMakeLists.txt            # CMake build tanımı
-│   │   └── package.xml               # ROS2 paket tanımı
+│   ├── celikubbe_ros2/                    # ROS 2 Düğüm (Node) Paketi
+│   │   ├── celikubbe_ros2/
+│   │   │   ├── kamera_dugumu.py           # Kamera akışını okur, topic'e yazar
+│   │   │   ├── tespit_dugumu.py           # YOLOv8 ve Renk algılama
+│   │   │   ├── kontrol_dugumu.py          # PID ve Motor açı hesaplamaları
+│   │   │   ├── donanim_dugumu.py          # Seri port / Mikrodenetleyici iletişimi
+│   │   │   ├── gorev_dugumu.py            # Ana Sistem Görev Yöneticisi (State Machine)
+│   │   │   └── arayuz_dugumu.py           # PyQt6 ROS 2 Arayüzü (GUI)
+│   │   ├── launch/
+│   │   │   └── celikubbe_launch.py        # Tüm sistemi çalıştıran konfigürasyon dosyası
+│   │   └── config/
+│   │       └── params.yaml                # PID, YOLO ve Kamera için parametreler
 │   │
-│   ├── prototip/                     # Prototip implementasyon
-│   │   ├── main.py                   # Ana giriş dosyası
-│   │   ├── improved.py               # İyileştirilmiş versiyon
-│   │   ├── camera/                   # Kamera yönetimi
-│   │   ├── detection/                # Hedef tespiti
-│   │   ├── control/                  # Motor kontrolü
-│   │   ├── communication/            # Arduino iletişimi
-│   │   ├── firmware/                 # Arduino firmware
-│   │   ├── models/                   # YOLO modelleri
-│   │   ├── config/                   # YAML konfigürasyon dosyaları
-│   │   ├── requirements.txt          # Python bağımlılıkları
-│   │   └── tests/                    # Test dosyaları
-│   │
-│   └── steel_dome_gui/               # GUI arayüzü
-│
-├── build/                            # Build çıktıları (otomatik oluşturulur)
-├── install/                          # Install edilmiş paketler
-├── log/                              # Build logları
-├── tutorial_notes/                   # Proje notları ve tutoriallar
-└── README.md                         # Bu dosya
+│   ├── hava_savunma_pkg/                  # (Eski - Deprecated) Tekil script yapısı
+│   ├── hss_gazebo_sim/                    # Gazebo Simülasyonu
+│   └── prototip/                          # (Eski - Deprecated) İlkel test kodları
+└── README.md
 ```
 
 ---
 
-## 📦 Bileşenlerin Açıklaması
+## �️ Bağımlılıklar ve Kurulum
 
-### 1. **hava_savunma_pkg** (Ana Paket)
-Durum makinesi tabanlı hava savunma sistemi paketi.
+Sistem **ROS 2 Humble** (Ubuntu 22.04 LTS) kullanılarak geliştirilmiştir.
 
-**Klasör Yapısı:**
-- `nodes/balloon_detector.py`: Hedef tespiti yapan ROS2 düğümü
-- `state_machine/`: Üç aşamalı durum yönetim sistemi
-  - Idle → Scanning → Detected → Stage1 → Stage2 → Stage3
-- `utils/`: Yardımcı fonksiyonlar
-- `launch/hss_system.launch.py`: Tüm sistemi başlatır
+### 1. Ekran Çökmelerini (Numpy x OpenCV) Önleme
+ÖNEMLİ: ROS 2 Humble üzerindeki `cv_bridge`, standart olarak Numpy 1.x C-API yapısına göre derlenmiştir. Numpy 2.0 veya OpenCV'nin çok güncel sürümlerinin sistemde olması `<AttributeError: _ARRAY_API not found>` hatasına sebep olur. Lütfen Numpy ve OpenCV'yi aşağıdaki sürümlere kilitleyin:
 
-### 2. **hss_gazebo_sim** (Gazebo Simülasyonu)
-Gazebo simülasyonu içeren C++ ROS2 paketi.
-
-**Özellikler:**
-- Gazebo ortamında sistem simülasyonu
-- 3D modeller ve dünyalar
-- ROS-Gazebo köprüsü (ros_gz_bridge integrate)
-
-### 3. **prototip** (Prototip Implementasyon)
-Doğrudan Arduino ve kamera kontrolü için prototip kod.
-
-**Modüller:**
-- `camera/`: Kamera feed işleme
-- `detection/`: YOLO ile hedef tespiti
-- `control/`: PID motor kontrolü
-- `communication/`: Arduino seri haberleşim
-
----
-
-## 🛠️ Gereksinimler ve Kurulum
-
-### Sistem Gereksinimleri
-- **İşletim Sistemi**: Ubuntu 20.04 LTS veya sonrası
-- **ROS2**: Foxy, Galactic, Humble veya Jazzy (önerilir: Humble)
-- **Python**: 3.8+
-- **C++ Derleyicisi**: GCC 9 veya sonrası
-
-### Bağımlılıkların Kurulması
-
-#### 1. ROS2 Kurulumu (Eğer yüklü değilse)
 ```bash
-# Ubuntu 22.04 için ROS2 Humble
-sudo apt update
-sudo curl -sSL https://raw.githubusercontent.com/ros/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) main" | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
-sudo apt update
-sudo apt install ros-humble-desktop
+pip install "numpy<2" "opencv-python<4.9.0" "opencv-contrib-python<4.9.0"
 ```
 
-#### 2. Bağımlılıkları Kurulum
+### 2. Gerekli Python Paketleri
+PyQt6 ve YOLOv8 için gerekenler:
 ```bash
-# ROS2 temel araçları
-sudo apt install -y ros-humble-ros2-bag ros-humble-rqt* ros-humble-gazebo* ros-humble-rviz*
-
-# Gazebo simülasyonu için
-sudo apt install -y gazebo ros-humble-ros-gz* ros-humble-ros-gz-bridge
-
-# Python paketleri
-pip install numpy opencv-python pyyaml scipy
-
-# Colcon build tool
-sudo apt install -y python3-colcon-common-extensions
-
-# Kaynak ortam
-source /opt/ros/humble/setup.bash
+pip install ultralytics pyserial PyQt6
 ```
 
----
-
-## 🚀 Kurulum ve Build
-
-### 1. Repoyu Klonla
+### 3. Sistemi Derleme (Colcon Build)
+Aşağıdaki komutlarla çalışma alanınızdaki Çelikkubbe paketlerini derleyip ortama bağlayın:
 ```bash
-cd ~
-git clone https://github.com/yourusername/hss_ws.git
-cd hss_ws
-```
-
-### 2. Ortamı Kur
-```bash
-# ROS2 ortamını source'la
-source /opt/ros/humble/setup.bash
-
-# Workspace'i build et
-colcon build
-```
-
-### 3. Setup Scriptini Çalıştır
-```bash
+cd ~/hss_ws
+colcon build --packages-select celikubbe_msgs celikubbe_ros2
 source install/setup.bash
 ```
 
-Her Terminal açtığında bu komutu çalıştırmanız gerekir. Otomatikleştirmek için:
-```bash
-echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
-echo "source ~/hss_ws/install/setup.bash" >> ~/.bashrc
-source ~/.bashrc
-```
+*(Not: Her yeni SSH oturumunda `source install/setup.bash` yapmayı unutmayın veya `~/.bashrc` dosyanıza ekleyin).*
 
 ---
 
-## ▶️ Çalıştırma Talimatları
+## 🚀 Sistemi Çalıştırma (Quick Start)
 
-### Seçenek 1: Tam Sistemi Çalıştır (ROS2)
+Tasarladığımız tüm Düğümleri (Kamera, Tespit, Kontrol, Donanım, Görev Yöneticisi ve Arayüz) eş zamanlı olarak `launch` dosyasıyla başlatabilirsiniz:
+
 ```bash
-source install/setup.bash
-ros2 launch hava_savunma_pkg hss_system.launch.py
+ros2 launch celikubbe_ros2 celikubbe_launch.py
 ```
 
-### Seçenek 2: Gazebo Simülasyonu
-```bash
-source install/setup.bash
-ros2 launch hss_gazebo_sim simulation.launch.py
-```
+Bu kod çalıştırıldığında ROS 2 ağı arka planda aktive edilecek ve **ÇELİK KUBBE SAVUNMA SİSTEMİ** isimli arayüz penceresi karşınıza otomatik açılacaktır. 
 
-### Seçenek 3: Prototip (Doğrudan Python)
-```bash
-cd src/prototip
-python main.py
-```
-
-### Seçenek 4: Durum Makinesi
-```bash
-ros2 run hava_savunma_pkg balloon_detector
-```
+Arayüz üzerinden:
+- **Canlı Kamera Görüntüsü** izleyebilir,
+- Hedeflenen nesnenin türü, menzili, rengi ve **Durum Makinesi evresini** kontrol edebilir,
+- Aşama 1, 2 veya 3 modlarına geçirebilir,
+- E-Stop (Acil Durdurma) veya Ateşleme tetiklemelerini yapabilirsiniz.
 
 ---
 
-## 🔧 Konfigürasyon
+## � Mimari Detaylar
 
-### YAML Konfigürasyon Dosyaları
-`src/prototip/config/` altında bulunan YAML dosyaları kullanılır.
-
-**Önemli Not**: 
-- YAML dosyası program başlangıcında bir kere okunur
-- Çalışma sırasında YAML değişikliği etkili olmaz
-- Yeni ayarları uygulamak için programı yeniden başlatınız
-
-```yaml
-# Örnek konfigürasyon
-camera:
-  device: 0
-  resolution: [640, 480]
-  fps: 30
-
-detection:
-  model: "yolo-weights.pt"
-  confidence: 0.5
-
-motor:
-  pid_kp: 1.0
-  pid_ki: 0.5
-  pid_kd: 0.2
-```
+1. **İletişim Altyapısı**: ROS 2 Topic'leri (kamera/ham_goruntu, tespit/hedef_bilgisi, donanim/motor_geri_bildirim vs.) hızı kontrol ederken, kritik sistem kararları `SetPhase` Service Client'i ve hata takibini yapabilen `EngageTarget` Action Server'i üzerinden yapılır.
+2. **PID Algoritması**: Hedefin kameradaki piksel sapmaları hesaplanarak kamera FOV (Field of View) açılarına dönüştürülür. Doğrusal hareket için her bir pan ve tilt ekseninde Dual-Axis PID hesaplaması yapılır.
+3. **Dost-Düşman Ayrımı (IFF)**: YOLOv8 ile Bounding Box çıkarılan hedefin içi HSV renk uzayı dönüşümünden geçirilerek baskın renk tespitiyle ayrılır. Mavi renkler tespit edilse bile angajmana geçilmez (Dost kuvvet atlanır).
 
 ---
-
-## 📊 Sistem Mimarisi
-
-```
-Kamera Input
-    ↓
-[Hedef Tespit - YOLO]
-    ↓
-[Durum Makinesi]
-    ├─ idle
-    ├─ scanning
-    ├─ detected
-    └─ stages (1, 2, 3)
-    ↓
-[Motor Kontrolü - PID]
-    ↓
-[Arduino İletişimi]
-    ↓
-Motor Çıkışı
-```
-
----
-
-## 📝 Sık Sorulan Sorular
-
-### Build Hatası: "Package not found"
-```bash
-# Build klasörünü temizle and yeniden build et
-rm -rf build/ install/ log/
-colcon build
-```
-
-### ROS2 Komutları Tanınmıyor
-```bash
-# Setup scriptini source'la
-source install/setup.bash
-```
-
-### Kamera Erişimi Hatası
-```bash
-# Kamera izinlerini kontrol et
-sudo usermod -a -G video $USER
-# Logout ve login yap
-```
-
-### Arduino Bağlantı Hatası
-```bash
-# Seri port izinlerini kontrol et
-sudo usermod -a -G dialout $USER
-# Logout ve login yap
-```
-
----
-
-## 🐛 Troubleshooting
-
-### Gazebo Başlamazsa
-```bash
-# Gazebo'yu temizle
-killall gzserver
-killall gzclient
-pkill -f gazebo
-
-# Yeniden başla
-ros2 launch hss_gazebo_sim simulation.launch.py
-```
-
-### ROS2 Node Başlamıyorsa
-```bash
-# ROS2 demon'u kontrol et
-ros2 daemon stop
-ros2 daemon start
-
-# İlgili node'u debug mode'da çalıştır
-ROS_LOG_DIR=/tmp ros2 run hava_savunma_pkg balloon_detector --ros-args --log-level debug
-```
-
----
-
-## 📚 Kaynaklar
-
-- [ROS2 Resmi Dokümantasyonu](https://docs.ros.org/en/humble/)
-- [Gazebo Simülasyonu](https://gazebosim.org/)
-- [Colcon Build Tool](https://colcon.readthedocs.io/)
-- [YOLOv8 Dokumentasyonu](https://docs.ultralytics.com/)
-
----
-
-## 📄 Lisans
-
-MIT Lisansı altında yayınlanmaktadır. Detay için [LICENSE](LICENSE) dosyasına bakınız.
-
----
+**Geliştiren:** Mert | Tasarlandı: 2026 TEKNOFEST HSS Yarışması
