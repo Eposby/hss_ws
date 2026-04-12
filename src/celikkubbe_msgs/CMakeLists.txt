@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(celikubbe_msgs)
+project(celikkubbe_msgs)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -10,6 +10,7 @@ find_package(rosidl_default_generators REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/TargetInfo.msg"
+  "msg/TargetInfoArray.msg"
   "msg/MotorSetpoint.msg"
   "msg/MotorFeedback.msg"
   "srv/SetPhase.srv"

@@ -4,14 +4,14 @@ Bu paket, TEKNOFEST Hava Savunma Sistemleri Yarışması için tasarlanmış ba�
 
 ## Mimari
 Yazılım iki ana paketten oluşur:
-1. `celikubbe_msgs`: Kullanılan özel ROS 2 arayüzlerini (`TargetInfo`, `MotorSetpoint`, `SetPhase`, `EngageTarget`) içerir.
-2. `celikubbe_ros2`: Aşağıdaki düğümleri içeren yürütücü uygulamadır:
+1. `celikkubbe_msgs`: Kullanılan özel ROS 2 arayüzlerini (`TargetInfo`, `MotorSetpoint`, `SetPhase`, `EngageTarget`) içerir.
+2. `celikkubbe_ros2`: Aşağıdaki düğümleri içeren yürütücü uygulamadır:
    - **`kamera_dugumu.py`**: Görüntü kaynağını okur ve ROS 2 formatında yayınlar.
-   - **`tespit_dugumu.py`**: YOLOv8 modeli ile nesne tanır; ayrıca HSV destekli alan taraması ile renk analizi yaparak (Kırmızı=Düşman, Mavi=Dost) sistemi besler.
+   - **`tespit_dugumu.py`**: YOLOv8 ile nesne tanır. Buna ek olarak; pin-hole kamera modeli ile hedef menzili tahmini yapar, bağımsız bir balon sınır kutusu (bbox) çizer, balon hariç gövde bölgesinin renk analizini (HSV) yaparak dost/düşman ayrımını hedefe ekler ve sahada tespit edilen tüm hedeflerin listesini yayınlar.
    - **`kontrol_dugumu.py`**: Doğrulanmış hedefleri takip etmek için gerekli pan ve tilt ekseni komutlarını PID ile hesaplar.
    - **`donanim_dugumu.py`**: Üretilen motor komutlarını donanımınıza (ESP32 vb.) seri port üzerinden iletir.
-   - **`gorev_dugumu.py`**: Sistemin beynidir (*Mission Control*). `Action` ve `Service` mekanizmalarını kullanarak otonom Aşama Kontrolü (State Machine), puanlama ve atış karar algoritmasını yönetir.
-   - **`arayuz_dugumu.py`**: PyQt6 tabanlı, "Glassmorphism" temalı yüksek kalite görev izleme panelidir.
+   - **`gorev_dugumu.py`**: Sistemin beynidir (*Mission Control*). Otonom Aşama Kontrolü (State Machine) ve menzil/zaman tabanlı dinamik atış karar algoritmasını yönetir. Araçların 15 metrelik kapalı döngü engelleri (bariyer) arkasına girmesi durumunu zaman-aşımı yönetimiyle kompanse eder. Ayrıca tespit edilen hedefin Arayüz üzerinden çizilen yasaklı atış bölgeleri (No-Fire Zone) içinde olup olmadığını denetler.
+   - **`arayuz_dugumu.py`**: PyQt6 tabanlı, "Glassmorphism" temalı yüksek kalite görev izleme panelidir. Sağ tıklayıp sürükleme yöntemiyle ekrana **Atışa Yasak Bölge (NFZ)** çizme, manuel mouse-aim taret yönlendirme, sistem telemetrisi görüntüleme imkanı sağlar.
 
 ## Kurulum ve Bağımlılıklar
 
@@ -25,12 +25,12 @@ pip install "numpy<2" "opencv-python<4.9.0" "opencv-contrib-python<4.9.0" ultral
 
 Çalışma alanınızı (`hss_ws`) inşa etmek için çalışma alanınızın kökünde (örneğin `~/hss_ws/`):
 ```bash
-colcon build --packages-select celikubbe_msgs celikubbe_ros2
+colcon build --packages-select celikkubbe_msgs celikkubbe_ros2
 ```
 
 ## Çalıştırma
 Sistemi tek adımda başlatmak için (Arayüz dahil tüm node'lar açılacaktır):
 ```bash
 source install/setup.bash
-ros2 launch celikubbe_ros2 celikubbe_launch.py
+ros2 launch celikkubbe_ros2 celikkubbe_launch.py
 ```

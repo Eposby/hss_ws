@@ -1,0 +1,66 @@
+/**:
+  ros__parameters:
+    camera_id: 0
+    width: 640
+    height: 480
+    fps: 30
+    use_picamera: False
+    stream_url: ""
+
+    model_path: "yolov8n.pt"
+    confidence: 0.70
+    device: "auto"
+    target_classes: ["f16", "helikopter", "iha", "balistik_fuze", "balon"]
+
+    pid:
+      pan:
+        kp: 0.15
+        ki: 0.01
+        kd: 0.08
+      tilt:
+        kp: 0.15
+        ki: 0.01
+        kd: 0.08
+      output_min: -100.0
+      output_max: 100.0
+      deadband: 1.0
+      
+    camera:
+      width: 640
+      height: 480
+      fov_horizontal: 60.0
+      fov_vertical: 45.0
+    
+    # Saha geometrisi (Z-ekseni pitch ofseti)
+    turret:
+      height_m: 0.60              # Taret masası yüksekliği (yerden)
+      target_height_m: 1.30       # Hedef ray yüksekliği (yerden)
+      known_target_size_m: 0.50   # Varsayılan hedef boyutu (metre)
+      drone_target_size_m: 0.30   # Drone hedefi (metre)
+
+    engagement_rules:
+      f16_min_range: 5.0
+      f16_max_range: 15.0
+      default_min_range: 0.0
+      default_max_range: 15.0
+
+    friend_foe:
+      friendly_colors: ["mavi", "yesil"]
+      enemy_colors: ["kirmizi"]
+
+    # Kırmızı balon tespiti HSV eşikleri
+    balloon_detection:
+      hsv_red_low1: [0, 70, 50]
+      hsv_red_high1: [10, 255, 255]
+      hsv_red_low2: [170, 70, 50]
+      hsv_red_high2: [180, 255, 255]
+      min_red_ratio: 0.15         # Alt ROI'de minimum kırmızı oranı
+      roi_bottom_fraction: 0.35   # BBox'ın alt yüzde kaçı taranacak
+    
+    # Güvenlik bariyeri parametreleri
+    barrier:
+      max_lost_frames: 20         # Bariyer arkası max kayıp frame sayısı
+
+    port: "/dev/ttyUSB0"
+    baudrate: 115200
+    auto_reconnect: True

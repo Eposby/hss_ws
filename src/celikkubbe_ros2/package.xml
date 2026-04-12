@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>celikubbe_ros2</name>
+  <name>celikkubbe_ros2</name>
   <version>1.0.0</version>
   <description>Çelikkubbe Hava Savunma Sistemi - ROS2 Nodes</description>
   <maintainer email="uslumertali@gmail.com">mert</maintainer>
@@ -10,7 +10,7 @@
   <depend>rclpy</depend>
   <depend>std_msgs</depend>
   <depend>sensor_msgs</depend>
-  <depend>celikubbe_msgs</depend>
+  <depend>celikkubbe_msgs</depend>
   <depend>cv_bridge</depend>
 
   <test_depend>ament_copyright</test_depend>

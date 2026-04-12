@@ -1,9 +1,8 @@
 # Goal
-celikubbe_msgs/TargetInfo target
+celikkubbe_msgs/TargetInfo target
 ---
 # Result
 bool success
-int32 points_earned
 string result_message
 ---
 # Feedback

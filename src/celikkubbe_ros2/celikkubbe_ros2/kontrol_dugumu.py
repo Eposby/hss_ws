@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
+import math
 import rclpy
 from rclpy.node import Node
-from celikubbe_msgs.msg import TargetInfo, MotorSetpoint
+from celikkubbe_msgs.msg import TargetInfo, MotorSetpoint
 
-from celikubbe_ros2.control.pid_controller import DualAxisPIDController, PIDGains
-from celikubbe_ros2.control.motor_calculator import MotorCalculator, MotorConfig, CameraConfig
+from celikkubbe_ros2.control.pid_controller import DualAxisPIDController, PIDGains
+from celikkubbe_ros2.control.motor_calculator import MotorCalculator, MotorConfig, CameraConfig
 
 class KontrolDugumu(Node):
     def __init__(self):
@@ -26,6 +27,12 @@ class KontrolDugumu(Node):
         self.declare_parameter('camera.height', 480)
         self.declare_parameter('camera.fov_horizontal', 60.0)
         self.declare_parameter('camera.fov_vertical', 45.0)
+        
+        # Saha geometrisi parametreleri (Z-ekseni pitch ofseti için)
+        self.declare_parameter('turret.height_m', 0.60)
+        self.declare_parameter('turret.target_height_m', 1.30)
+        self.declare_parameter('turret.known_target_size_m', 0.50)
+        self.declare_parameter('turret.drone_target_size_m', 0.30)
 
         # PID Sınıflarının Kurulumu
         pan_gains = PIDGains(
@@ -59,6 +66,14 @@ class KontrolDugumu(Node):
         
         self.motor_calc = MotorCalculator(pan_motor=pan_motor, tilt_motor=tilt_motor, camera=cam_cfg)
         
+        # Saha geometrisi değerlerini oku
+        self.turret_height = self.get_parameter('turret.height_m').value
+        self.target_height = self.get_parameter('turret.target_height_m').value
+        self.known_target_size = self.get_parameter('turret.known_target_size_m').value
+        self.drone_target_size = self.get_parameter('turret.drone_target_size_m').value
+        self.cam_width = self.get_parameter('camera.width').value
+        self.cam_fov_h = self.get_parameter('camera.fov_horizontal').value
+        
         # Subs/Pubs
         self.subscription = self.create_subscription(
             TargetInfo,
@@ -70,6 +85,33 @@ class KontrolDugumu(Node):
         
         self.get_logger().info("Kontrol Node başlatıldı.")
 
+    def _estimate_pitch_offset(self, msg: TargetInfo) -> float:
+        """
+        Taret-hedef yükseklik farkından (70cm) kaynaklanan
+        dinamik pitch offset hesabı.
+        
+        bbox_height (px) → tahmini mesafe (m) → atan2(Δh, mesafe) → derece
+        """
+        delta_h = self.target_height - self.turret_height  # 0.70 m
+        
+        if msg.bbox_height <= 0:
+            return 4.0  # Varsayılan orta değer
+        
+        # Hedef tipine göre boyut seçimi
+        if "drone" in msg.target_type.lower() or "iha" in msg.target_type.lower():
+            real_size = self.drone_target_size
+        else:
+            real_size = self.known_target_size
+        
+        # Pin-hole kamera modeli: mesafe ≈ (gerçek_boyut × focal_px) / bbox_height_px
+        focal_px = (self.cam_width / 2.0) / math.tan(math.radians(self.cam_fov_h / 2.0))
+        estimated_range = (real_size * focal_px) / max(msg.bbox_height, 1)
+        
+        # Pitch offset: atan2(Δh, mesafe) → derece
+        pitch_offset_deg = math.degrees(math.atan2(delta_h, max(estimated_range, 0.5)))
+        
+        return pitch_offset_deg
+
     def target_callback(self, msg: TargetInfo):
         if not msg.is_tracked:
             self.pid.reset()
@@ -79,6 +121,11 @@ class KontrolDugumu(Node):
         error_y = float(msg.error_y)
         
         pan_angle_error, tilt_angle_error = self.motor_calc.pixel_error_to_angle(error_x, error_y)
+        
+        # Z-ekseni dinamik pitch ofseti: namlu hedefin yüksekliğine göre yukarı bakar
+        pitch_offset = self._estimate_pitch_offset(msg)
+        tilt_angle_error -= pitch_offset  # Eksi çünkü yukarı = negatif Y
+        
         pan_output, tilt_output = self.pid.update(pan_angle_error, tilt_angle_error)
         movement = self.motor_calc.calculate_movement(int(pan_output), int(tilt_output))
         

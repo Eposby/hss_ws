@@ -18,6 +18,7 @@ Union[X, Y]	X veya Y tipinde olabilir	Union[int, str] = 0 veya "video.mp4"
 
 import cv2
 import numpy as np
+import math
 from typing import Optional, List, Tuple, Dict
 from dataclasses import dataclass
 
@@ -31,6 +32,29 @@ class Detection:
     bbox: Tuple[int, int, int, int]  # x1, y1, x2, y2
     center: Tuple[int, int]  # center_x, center_y
     area: int
+    has_balloon: bool = False
+    estimated_range_m: float = 0.0
+    vehicle_color: str = ""
+    balloon_bbox: Optional[Tuple[int, int, int, int]] = None
+    balloon_center: Optional[Tuple[int, int]] = None
+    is_friendly: bool = False
+
+class RangeEstimator:
+    def __init__(self, cam_width: int, cam_fov_h: float, known_sizes: dict):
+        self.cam_width = cam_width
+        self.cam_fov_h = cam_fov_h
+        self.known_sizes = known_sizes
+        
+        # focal length in pixels
+        self.focal_px = (cam_width / 2.0) / math.tan(math.radians(cam_fov_h / 2.0))
+        
+    def estimate(self, class_name: str, bbox_height_px: int) -> float:
+        if bbox_height_px <= 0:
+            return 10.0 # Default fallback
+            
+        real_size = self.known_sizes.get(class_name, self.known_sizes.get("default", 0.50))
+        estimated_range = (real_size * self.focal_px) / float(bbox_height_px)
+        return estimated_range
 
 
 class YOLODetector:
@@ -206,6 +230,14 @@ class YOLODetector:
                 cv2.line(annotated, (cx - 15, cy), (cx + 15, cy), (0, 0, 255), 2)
                 cv2.line(annotated, (cx, cy - 15), (cx, cy + 15), (0, 0, 255), 2)
             
+            # Ateşleme noktası (AIM) — bbox alt ortası (balon hizası)
+            aim_x = (x1 + x2) // 2
+            aim_y = y2  # bbox alt çizgisi
+            cv2.drawMarker(annotated, (aim_x, aim_y), (0, 165, 255),  # Turuncu
+                           cv2.MARKER_CROSS, 20, 2)
+            cv2.putText(annotated, "AIM", (aim_x + 12, aim_y + 5),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 165, 255), 1)
+            
             # Bilgi yazısı
             if draw_info:
                 label = f"{det.class_name}: {det.confidence:.2f}"
@@ -221,17 +253,42 @@ class YOLODetector:
 
 
 
-    # bu kısım değişecek çünkü sadece alanın büyüklüğüne bakarak öncelik vermeyeceğiz gerekirse en uzaktaki cisim vurulacak
-    def get_primary_target(
+    def get_priority_target(
         self,
-        detections: List[Detection]
+        detections: List[Detection],
+        engagement_rules: dict = None
     ) -> Optional[Detection]:
         """
-        En büyük/birincil hedefi döndür
+        Mesafe ve hedefin özelliklerine göre (balon var mı vb.) birincil hedefi seç
         """
         if not detections:
             return None
-        return detections[0]  # Zaten alana göre sıralı
+            
+        if engagement_rules is None:
+            engagement_rules = {
+                "f16": (5.0, 15.0),
+                "default": (0.0, 15.0)
+            }
+            
+        eligible = []
+        for det in detections:
+            # Balon yoksa hedef atlanır
+            if not det.has_balloon:
+                continue
+                
+            # Menzil kontrolü
+            rule_key = det.class_name if det.class_name in engagement_rules else "default"
+            min_range, max_range = engagement_rules.get(rule_key, (0.0, 15.0))
+            
+            if min_range <= det.estimated_range_m <= max_range:
+                eligible.append(det)
+                
+        if not eligible:
+            return None
+            
+        # En yakın ve en güvenilir hedefi seç
+        eligible.sort(key=lambda d: (d.estimated_range_m, -d.confidence))
+        return eligible[0]
     
     def calculate_error(
         self,

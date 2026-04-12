@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 import rclpy
 from rclpy.node import Node
-from celikubbe_msgs.msg import MotorSetpoint, MotorFeedback
+from celikkubbe_msgs.msg import MotorSetpoint, MotorFeedback
 
-from celikubbe_ros2.communication.serial_comm import SerialCommunicator, MotorCommand
+from celikkubbe_ros2.communication.serial_comm import SerialCommunicator, MotorCommand
 
 class DonanimDugumu(Node):
     def __init__(self):

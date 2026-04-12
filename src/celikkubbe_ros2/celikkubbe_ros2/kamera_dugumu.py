@@ -4,7 +4,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 
-from celikubbe_ros2.camera.capture import CameraCapture
+from celikkubbe_ros2.camera.capture import CameraCapture
 
 class KameraDugumu(Node):
     def __init__(self):

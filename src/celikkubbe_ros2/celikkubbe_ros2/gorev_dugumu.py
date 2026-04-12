@@ -3,11 +3,12 @@ from rclpy.node import Node
 from rclpy.action import ActionServer, GoalResponse, CancelResponse
 from rclpy.action.server import ServerGoalHandle
 from std_msgs.msg import String, Int32, Bool
-from celikubbe_msgs.msg import TargetInfo, MotorFeedback
-from celikubbe_msgs.srv import SetPhase
-from celikubbe_msgs.action import EngageTarget
+from celikkubbe_msgs.msg import TargetInfo, MotorFeedback
+from celikkubbe_msgs.srv import SetPhase
+from celikkubbe_msgs.action import EngageTarget
 import threading
 import time
+import json
 
 class GorevDugumu(Node):
     def __init__(self):
@@ -16,27 +17,35 @@ class GorevDugumu(Node):
         # State Machine States
         self.STATES = [
             "BEKLE", "ARAYUZ_HAZIR", "ASAMA_TESPIT", "HEDEF_TAKIP", 
-            "HEDEF_NISAN", "IMHA_ONAY", "ATESLE", "IMHA_BASARILI", "IMHA_IPTAL", "ASAMA_BASARILI"
+            "HEDEF_NISAN", "HEDEF_BEKLEME_KISA", "TARAMA_MODU", "IMHA_ONAY", "ATESLE", 
+            "IMHA_BASARILI", "IMHA_IPTAL", "ASAMA_BASARILI"
         ]
         self.current_state = "BEKLE"
         self.current_phase = 0
-        self.score = 0
         
         # Phase specific variables
         self.active_target = None
         self.motor_feedback = MotorFeedback()
         self.is_e_stop_active = False
+        self.is_manual_mode = False
+        
+        self.target_lost_time = None
+        self.SHORT_LOST_TIMEOUT = self.declare_parameter('timeout.short_lost_s', 1.0).value
+        self.LONG_LOST_TIMEOUT = self.declare_parameter('timeout.long_lost_s', 10.0).value
+        self.last_known_target = None
+        
+        self.nofire_zones = []
         
         # Publishers
         self.dogrulanmis_pub = self.create_publisher(TargetInfo, '/gorev/dogrulanmis_hedef', 10)
         self.durum_pub = self.create_publisher(String, '/gorev/durum', 10)
-        self.puan_pub = self.create_publisher(Int32, '/gorev/puan', 10)
         
         # Subscribers
         self.hedef_sub = self.create_subscription(TargetInfo, '/tespit/hedef_bilgisi', self.hedef_callback, 10)
         self.motor_fb_sub = self.create_subscription(MotorFeedback, '/donanim/motor_geri_bildirim', self.motor_fb_callback, 10)
         self.estop_sub = self.create_subscription(Bool, '/arayuz/acil_dur', self.estop_callback, 10)
         self.operator_sub = self.create_subscription(String, '/arayuz/operator_komutu', self.operator_callback, 10)
+        self.nfz_sub = self.create_subscription(String, '/arayuz/yasak_bolge', self.nfz_callback, 10)
         
         # Service & Action Servers
         self.phase_srv = self.create_service(SetPhase, '/gorev/asama_sec', self.handle_set_phase)
@@ -61,12 +70,12 @@ class GorevDugumu(Node):
             msg.data = self.current_state
             self.durum_pub.publish(msg)
             self.get_logger().info(f"State değişti: {new_state}")
-            
-    def update_score(self, points):
-        self.score += points
-        msg = Int32()
-        msg.data = self.score
-        self.puan_pub.publish(msg)
+
+    def nfz_callback(self, msg: String):
+        try:
+            self.nofire_zones = json.loads(msg.data)
+        except Exception as e:
+            self.get_logger().error(f"NFZ Parse Error: {e}")
 
     def estop_callback(self, msg: Bool):
         if msg.data:
@@ -83,8 +92,8 @@ class GorevDugumu(Node):
     def handle_set_phase(self, request, response):
         if request.phase in [1, 2, 3]:
             self.current_phase = request.phase
-            self.score = 0
-            self.update_score(0)
+            self.target_lost_time = None
+            self.last_known_target = None
             self.change_state("ASAMA_TESPIT")
             response.success = True
             response.message = f"Aşama {self.current_phase} seçildi."
@@ -99,36 +108,116 @@ class GorevDugumu(Node):
         self.motor_feedback = msg
 
     def hedef_callback(self, msg: TargetInfo):
-        # Aşama mantığına göre hedef filtreleme ve doğrulama
-        if self.is_e_stop_active or self.current_state not in ["ASAMA_TESPIT", "HEDEF_TAKIP", "HEDEF_NISAN", "ATESLE"]:
+        if self.is_e_stop_active:
             return
+        
+        # --- Hedef kaybı yönetimi (Bariyer Arkası) ---
+        if not msg.is_tracked:
+            if self.target_lost_time is None:
+                self.target_lost_time = time.time()
+                
+            elapsed = time.time() - self.target_lost_time
             
+            if self.current_state in ["HEDEF_TAKIP", "HEDEF_NISAN"]:
+                if elapsed >= self.LONG_LOST_TIMEOUT:
+                    self.change_state("TARAMA_MODU")
+                    self.last_known_target = None
+                    self.target_lost_time = None
+                    self.get_logger().info("Hedef uzun süre kayıp, taramaya geçiliyor.")
+                elif elapsed >= self.SHORT_LOST_TIMEOUT:
+                    if self.current_state != "TARAMA_MODU":
+                        self.change_state("TARAMA_MODU")
+                        self.get_logger().info("Bariyer arkası bekleme uzadı, tarama aranıyor.")
+                else:
+                    if self.current_state != "HEDEF_BEKLEME_KISA":
+                        self.change_state("HEDEF_BEKLEME_KISA")
+                        self.get_logger().info("Hedef geçici kayıp, taret bekliyor.")
+            elif self.current_state in ["HEDEF_BEKLEME_KISA", "TARAMA_MODU"]:
+                if elapsed >= self.LONG_LOST_TIMEOUT:
+                    self.change_state("ASAMA_TESPIT")
+                    self.last_known_target = None
+                    self.target_lost_time = None
+            return
+        
+        # Hedef var → sayacı sıfırla
+        self.target_lost_time = None
+        
+        # Bekleme'den dönüş → eski state'e devam
+        if self.current_state in ["HEDEF_BEKLEME_KISA", "TARAMA_MODU"]:
+            self.change_state("HEDEF_TAKIP")
+            self.get_logger().info("Hedef tekrar görüldü, takibe devam.")
+        
+        # Aktif state kontrolü
+        if self.current_state not in ["ASAMA_TESPIT", "HEDEF_TAKIP", "HEDEF_NISAN", "ATESLE"]:
+            return
+        
+        # --- Manuel mod: sadece görüntüle, PID'e gönderme ---
+        if self.is_manual_mode:
+            # Manuel modda hedef bilgisi sadece GUI'de gösterilir
+            # Doğrulanmış hedef yayınlanmaz (PID devre dışı)
+            self.active_target = msg
+            return
+        
+        # --- Balon kontrolü (Vurulacak mı?) ---
+        if not msg.has_balloon:
+            # Balon yok → bu hedef zaten imha edilmiş veya geçersiz
+            durum_msg = String()
+            durum_msg.data = "BALON_YOK_ATLANDI"
+            self.durum_pub.publish(durum_msg)
+            return
+
+        # --- No-Fire Zone (Atışa Yasak Bölge) Kontrolü ---
+        for zone in self.nofire_zones:
+            if (zone.get("x_min", 0) <= msg.aim_x <= zone.get("x_max", 0)) and \
+               (zone.get("y_min", 0) <= msg.aim_y <= zone.get("y_max", 0)):
+                durum_msg = String()
+                durum_msg.data = "NFZ_ICINDE_ATLANDI"
+                self.durum_pub.publish(durum_msg)
+                return
+        
+        # --- Aşama mantığı ---
         if self.current_phase == 3:
-            if msg.is_tracked and not msg.is_friendly:
-                self.active_target = msg
-                self.dogrulanmis_pub.publish(self.active_target)
-                if self.current_state == "ASAMA_TESPIT":
-                    self.change_state("HEDEF_TAKIP")
-            elif msg.is_tracked and msg.is_friendly:
-                # Dost atlandı
+            if msg.is_friendly:
+                # Dost unsur atlandı
                 durum_msg = String()
                 durum_msg.data = "DOST_ATLANDI"
                 self.durum_pub.publish(durum_msg)
-                
+                return
+            # Düşman hedef → doğrula ve ilet
+            self.active_target = msg
+            self.last_known_target = msg
+            self.dogrulanmis_pub.publish(msg)
+            if self.current_state == "ASAMA_TESPIT":
+                self.change_state("HEDEF_TAKIP")
+                    
         elif self.current_phase == 2:
-            # Sürü modunda her şey düşman (örnek)
-            if msg.is_tracked:
-                self.active_target = msg
-                self.dogrulanmis_pub.publish(self.active_target)
-                if self.current_state == "ASAMA_TESPIT":
-                    self.change_state("HEDEF_TAKIP")
+            # Sürü modunda her şey düşman
+            self.active_target = msg
+            self.last_known_target = msg
+            self.dogrulanmis_pub.publish(msg)
+            if self.current_state == "ASAMA_TESPIT":
+                self.change_state("HEDEF_TAKIP")
                     
         elif self.current_phase == 1:
-            if msg.is_tracked:
-                self.active_target = msg
-                self.dogrulanmis_pub.publish(self.active_target)
+            self.active_target = msg
+            self.last_known_target = msg
+            self.dogrulanmis_pub.publish(msg)
                 
     def operator_callback(self, msg: String):
+        # Mod değişikliği komutları
+        if msg.data == "mod_manuel":
+            self.is_manual_mode = True
+            self.get_logger().info("Manuel mod aktif — PID bypass.")
+            return
+        elif msg.data == "mod_otonom":
+            self.is_manual_mode = False
+            self.get_logger().info("Otonom mod aktif — PID kontrol.")
+            return
+        elif msg.data == "home":
+            self.get_logger().info("Home pozisyonuna dönüş komutu alındı.")
+            # Home komutu donanım düğümüne iletilir
+            return
+        
         # Operatör ateş komutu (Aşama 1)
         if msg.data == "ates_istegi" and self.current_phase == 1 and self.current_state in ["HEDEF_TAKIP", "HEDEF_NISAN"]:
             self.change_state("IMHA_ONAY")
@@ -179,15 +268,7 @@ class GorevDugumu(Node):
                 # Wait for firing sequence
                 time.sleep(1.0)
                 self.change_state("IMHA_BASARILI")
-                
-                # Puan simülasyonu
-                points = 10
-                if target.target_type == "f16": points = 30
-                elif target.target_type == "helikopter" or target.target_type == "balistik_fuze": points = 15
-                
-                self.update_score(points)
                 result.success = True
-                result.points_earned = points
                 result.result_message = "Hedef başarıyla imha edildi."
                 goal_handle.succeed()
                 self.change_state("ASAMA_TESPIT") # Bir sonraki hedefe geç
