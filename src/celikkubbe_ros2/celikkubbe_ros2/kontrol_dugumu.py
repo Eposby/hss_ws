@@ -11,7 +11,7 @@ class KontrolDugumu(Node):
     def __init__(self):
         super().__init__('kontrol_dugumu')
         
-        # ROS 2 Parametreleri
+        # ROS 2 Parametreleri pid.pan.kp şeklindeki noktalı ("." )yazım biçimi tam olarak yaml içindeki bu ağaca (pid -> pan -> kp) işaret eder.
         self.declare_parameter('pid.pan.kp', 0.15)
         self.declare_parameter('pid.pan.ki', 0.01)
         self.declare_parameter('pid.pan.kd', 0.08)

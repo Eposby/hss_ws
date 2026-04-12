@@ -7,10 +7,10 @@
     use_picamera: False
     stream_url: ""
 
-    model_path: "yolov8n.pt"
+    model_path: "/home/mert/hss_ws/src/celikkubbe_ros2/yolov8n.pt"
     confidence: 0.70
     device: "auto"
-    target_classes: ["f16", "helikopter", "iha", "balistik_fuze", "balon"]
+    target_classes: ["f16", "helikopter", "iha", "balistik_fuze"]
 
     pid:
       pan:
@@ -39,7 +39,7 @@
       drone_target_size_m: 0.30   # Drone hedefi (metre)
 
     engagement_rules:
-      f16_min_range: 5.0
+      f16_min_range: 10.0
       f16_max_range: 15.0
       default_min_range: 0.0
       default_max_range: 15.0
