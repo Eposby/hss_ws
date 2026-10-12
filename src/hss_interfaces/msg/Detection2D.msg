@@ -1,0 +1,16 @@
+int32 class_id
+string class_name
+string color
+bool is_friendly
+float32 confidence
+int32 bbox_x
+int32 bbox_y
+int32 bbox_width
+int32 bbox_height
+int32 center_x
+int32 center_y
+bool has_payload
+int32 payload_bbox_x
+int32 payload_bbox_y
+int32 payload_bbox_width
+int32 payload_bbox_height

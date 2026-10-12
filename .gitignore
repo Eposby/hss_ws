@@ -3,3 +3,7 @@ install/
 log/
 *.mp4
 *.bag
+__pycache__/
+*.py[cod]
+*.egg-info/
+

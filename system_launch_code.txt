@@ -1,0 +1,3 @@
+source /opt/ros/humble/setup.bash
+source /home/mert/hss_ws/install/setup.bash
+ros2 launch hss_bringup hss_phase2_tracking.launch.py

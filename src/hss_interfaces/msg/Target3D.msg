@@ -1,0 +1,11 @@
+std_msgs/Header header
+int32 target_id
+string class_name
+string color
+bool is_friendly
+geometry_msgs/Point position
+float32 range_m
+float32 azimuth_deg
+float32 elevation_deg
+float32 confidence
+string estimation_method

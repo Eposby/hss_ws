@@ -1,0 +1,12 @@
+std_msgs/Header header
+int32 track_id
+string class_name
+string color
+bool is_friendly
+geometry_msgs/Point position
+geometry_msgs/Vector3 velocity
+float32 speed_mps
+float32 range_m
+float32 threat_score
+bool is_coasting
+float32 track_age_sec

@@ -1,0 +1,8 @@
+std_msgs/Header header
+int32 target_track_id
+geometry_msgs/Point intercept_point
+float32 target_pan_deg
+float32 target_tilt_deg
+float32 time_to_impact_sec
+bool fire_permission
+string status

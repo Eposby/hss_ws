@@ -1,0 +1,8 @@
+float32 current_pan_deg
+float32 current_tilt_deg
+int32 current_pan_steps
+int32 current_tilt_steps
+bool is_moving
+bool is_homed
+bool limit_switch_triggered
+bool e_stop_active

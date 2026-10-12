@@ -1,0 +1,28 @@
+# Hedeflerin Gerçek Dünya CAD Boyutları (Metre Cinsinden)
+# TEKNOFEST HSS Şartnamesi ve Maket Ölçüleri
+
+targets:
+  iha:
+    width: 0.40      # Kanat açıklığı (X)
+    height: 0.20     # Gövde yüksekliği (Y)
+    length: 0.40     # Burun-kuyruk uzunluğu (Z)
+  f16:
+    width: 0.50
+    height: 0.15
+    length: 0.70
+  balon:
+    width: 0.25
+    height: 0.25
+    length: 0.25
+  helikopter:
+    width: 0.45
+    height: 0.25
+    length: 0.50
+  balistik_fuze:
+    width: 0.12
+    height: 0.65
+    length: 0.12
+  default:
+    width: 0.35
+    height: 0.20
+    length: 0.35

@@ -1,0 +1,6 @@
+int32 pan_steps
+int32 tilt_steps
+float32 pan_angle_deg
+float32 tilt_angle_deg
+int32 pan_speed_sps
+int32 tilt_speed_sps

@@ -1,0 +1,17 @@
+# HSS 3B Kalman Filtresi ve Hedef Takip Parametreleri
+
+tracker:
+  update_rate_hz: 30.0
+  coasting_timeout_sec: 1.2    # Görüş kaybında hız tahminiyle devam etme süresi
+  max_lost_timeout_sec: 3.0    # Hedef tamamen silinene kadarki maksimum süre
+
+  # Kalman Kovaryans Ayarları
+  process_noise_pos: 0.05      # Konum model belirsizliği (m^2)
+  process_noise_vel: 0.50      # Hız model belirsizliği ((m/s)^2)
+  measurement_noise: 0.10      # Kamera ölçüm gürültüsü (m^2)
+
+  # Tehdit Puanlama Ağırlıkları (Toplam 1.0)
+  threat_weights:
+    distance: 0.40             # Yakınlık ağırlığı (daha yakın = daha tehlikeli)
+    approach_speed: 0.40       # Yaklaşma hızı ağırlığı
+    centering: 0.20            # Görüş eksenine yakınlık

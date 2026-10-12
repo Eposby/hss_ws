@@ -1,0 +1,25 @@
+# HSS Balistik ve PID Kontrol Parametreleri
+
+guidance:
+  mode: "laser"               # "laser" (anlık) veya "ballistic" (mühimmat uçuş süreli)
+  projectile_velocity_mps: 80.0  # Mermi/BB çıkış hızı (m/s)
+  system_latency_sec: 0.04    # Uçtan uca gecikme kompanzasyonu (40 ms)
+  gravity_mps2: 9.81          # Yerçekimi ivmesi
+
+pid:
+  pan:
+    kp: 0.25
+    ki: 0.01
+    kd: 0.12
+  tilt:
+    kp: 0.25
+    ki: 0.01
+    kd: 0.12
+  deadband_deg: 0.30          # Titremeyi önleyen ölü bölge (derece)
+  output_max_deg_per_sec: 90.0
+
+hardware:
+  steps_per_rev_pan: 3200     # 16 microstep x 200 adım
+  steps_per_rev_tilt: 3200
+  gear_ratio_pan: 3.0         # Dişli redüksiyonu
+  gear_ratio_tilt: 1.0
